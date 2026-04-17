@@ -8,3 +8,6 @@ next-env.d.ts
 .vercel
 .DS_Store
 Thumbs.db
+
+# Private developer docs — never committed to public repo
+_archive/
