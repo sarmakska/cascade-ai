@@ -1,7 +1,7 @@
 /**
- * Database row types for Cascade AI's Supabase tables.
+ * Database row types for SarmaLink-AI's Supabase tables.
  *
- * These match the schema in `supabase/migrations/001_cascade_ai.sql`.
+ * These match the schema in `supabase/migrations/001_sarmalink_ai.sql`.
  * Regenerate with `npx supabase gen types typescript` when the schema
  * changes, or maintain manually as this file does.
  */

@@ -45,7 +45,7 @@ async function duckDuckGoHtml(query: string): Promise<string> {
     try {
         const url = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`
         const res = await fetch(url, {
-            headers: { 'User-Agent': 'Mozilla/5.0 (cascade-ai-search/1.0)' },
+            headers: { 'User-Agent': 'Mozilla/5.0 (sarmalink-ai-search/1.0)' },
         })
         if (!res.ok) return ''
         const html = await res.text()

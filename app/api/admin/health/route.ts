@@ -5,7 +5,7 @@
  * the last 24 hours, median latency per provider, and dead-model flags.
  *
  * This is the dashboard data feed — build a `/admin/health` UI that polls
- * this endpoint to see cascade behaviour in real time.
+ * this endpoint to see failover behaviour in real time.
  *
  * Access control: in production, you MUST protect this endpoint. Options:
  *   1. Require an ADMIN_EMAIL env match against the authenticated user

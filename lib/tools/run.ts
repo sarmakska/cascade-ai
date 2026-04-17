@@ -12,7 +12,7 @@ import { wrapToolResult } from '@/lib/prompts/sanitize'
 /**
  * Run all tools whose `detect()` returns non-null for this message.
  * Returns an array of results in registry order. Callers should
- * concatenate these onto the user message before the cascade fires.
+ * concatenate these onto the user message before the failover fires.
  *
  * Errors in individual tools are swallowed — a broken tool must never
  * block the chat request. The event is dropped silently; if observability

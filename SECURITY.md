@@ -2,7 +2,7 @@
 
 ## Reporting a Vulnerability
 
-If you discover a security vulnerability in Cascade AI, please **do not** open a public GitHub issue.
+If you discover a security vulnerability in SarmaLink-AI, please **do not** open a public GitHub issue.
 
 Instead, email **helpme@sarmalinux.com** with:
 
@@ -15,11 +15,11 @@ You will receive an acknowledgement within 72 hours, and a resolution plan withi
 
 ## Scope
 
-Cascade AI is provided as-is under the MIT License. The core repository is a reference implementation; users deploy it under their own infrastructure with their own API keys.
+SarmaLink-AI is provided as-is under the MIT License. The core repository is a reference implementation; users deploy it under their own infrastructure with their own API keys.
 
 **In scope:**
 
-- Prompt injection vulnerabilities in the cascade orchestrator
+- Prompt injection vulnerabilities in the failover orchestrator
 - Authentication bypass in server-side route handlers
 - Privilege escalation via Supabase service-role misuse
 - Information disclosure through error messages or logs

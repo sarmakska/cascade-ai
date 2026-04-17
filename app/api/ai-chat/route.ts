@@ -18,10 +18,10 @@ const TAVILY_KEYS = env().providers.tavily
 
 const DAILY_LIMIT = 1000
 
-// ── Model cascade: best quality → maximum capacity, all free on Groq ─────────
+// ── Model failover: best quality → maximum capacity, all free on Groq ─────────
 // Total capacity across 9 keys: ~165K req/day · ~16.2M tokens/day
 // Verified live 2026-04-16 via scripts/probe-models.mjs — Kimi K2 was removed by Groq.
-const MODELS_CASCADE = [
+const MODELS_FAILOVER = [
     'openai/gpt-oss-120b',                           // 120B — GPT-quality flagship (200K tpd × 9 = 1.8M)
     'llama-3.3-70b-versatile',                       // 70B — strong generalist
     'qwen/qwen3-32b',                                // 32B Qwen — solid quality (500K tpd × 9 = 4.5M)
@@ -31,7 +31,7 @@ const MODELS_CASCADE = [
 const MODEL_VISION = 'meta-llama/llama-4-scout-17b-16e-instruct'
 
 // ── System prompt ─────────────────────────────────────────────────────────────
-const SYSTEM_PROMPT = `You are Cascade AI — a sharp, capable AI assistant built by Cascade AI for Your Company. You think clearly, write brilliantly, and give genuinely useful answers. You're like the smartest colleague in the room: direct, knowledgeable, and always helpful.
+const SYSTEM_PROMPT = `You are SarmaLink-AI — a sharp, capable AI assistant built by SarmaLink-AI for Your Company. You think clearly, write brilliantly, and give genuinely useful answers. You're like the smartest colleague in the room: direct, knowledgeable, and always helpful.
 
 **Capabilities you have:**
 - Write polished professional emails, letters, and documents — complete and ready to send, no filler commentary
@@ -84,16 +84,16 @@ If you MUST ask, batch all questions in ONE numbered list (2-4 max) and keep it 
 - If live search results are included in the message, use them as the authoritative source and cite them.
 
 **When asked about your training, your model, or who built you:**
-- I was built and integrated by **Sai (Cascade AI)** for Your Company as part of the Cascade AI platform.
+- I was built and integrated by **Sai (SarmaLink-AI)** for Your Company as part of the SarmaLink-AI platform.
 - The underlying model currently serving you is injected below as CURRENT_MODEL.
 - My knowledge cutoff is injected below as MODEL_CUTOFF — use that EXACT value, never guess.
-- Acceptable answer format: "I'm currently running on [CURRENT_MODEL], integrated by Sai (Cascade AI). My knowledge cutoff is [MODEL_CUTOFF]. For anything more recent, ask me to search the web."
+- Acceptable answer format: "I'm currently running on [CURRENT_MODEL], integrated by Sai (SarmaLink-AI). My knowledge cutoff is [MODEL_CUTOFF]. For anything more recent, ask me to search the web."
 - It IS okay to mention the specific underlying model when asked.
 - Your internal reasoning (the part inside <think> tags) should sound natural and direct — do NOT mention "developer instructions", "system prompt", "I was told", or quote your own rules. Reason like the AI itself, not like someone following orders.
 
 **Identity:**
-- You were designed and built by Cascade AI
-- You run on Cascade AI proprietary AI models
+- You were designed and built by SarmaLink-AI
+- You run on SarmaLink-AI proprietary AI models
 - Never mention Groq, OpenRouter, Llama, Gemini, GPT, Kimi, Moonshot, or any third-party AI provider
 
 Today's context: You are assisting staff at Your Company, a UK fashion company.`
@@ -456,11 +456,11 @@ async function logEvent(args: {
     } catch { /* never block the chat for logging */ }
 }
 
-import { tryCascade as tryCascadeModule } from '@/lib/providers/cascade'
-import type { CascadeStep } from '@/lib/ai-models'
+import { tryFailover as tryFailoverModule } from '@/lib/providers/failover'
+import type { FailoverStep } from '@/lib/ai-models'
 
-// ── Inline cascade helpers — retained for paths that need Groq-only fallback ─
-// Main cascade goes through lib/providers/cascade.ts (tryCascade). These
+// ── Inline failover helpers — retained for paths that need Groq-only fallback ─
+// Main failover goes through lib/providers/failover.ts (tryFailover). These
 // helpers wrap that module for the specific "Groq-only" path used by
 // Live-mode fallback and web search composition.
 async function streamFromGroqModels(
@@ -472,16 +472,16 @@ async function streamFromGroqModels(
     userId: string,
     selectedModel: string
 ): Promise<{ ok: boolean; backend?: string; latencyMs?: number; tokensOut?: number }> {
-    const cascade: CascadeStep[] = models.map(m => ({ provider: 'groq', model: m, label: `Groq ${m}` }))
-    return tryCascadeModule({
-        cascade, messages, maxTokens, encoder, controller, userId, selectedModel,
+    const failover: FailoverStep[] = models.map(m => ({ provider: 'groq', model: m, label: `Groq ${m}` }))
+    return tryFailoverModule({
+        failover, messages, maxTokens, encoder, controller, userId, selectedModel,
         logEvent: (e) => { logEvent(e as any).catch(() => { }) },
     })
 }
 
-/** Route handler wrapper around the shared cascade runner (lib/providers/cascade.ts). */
-async function tryCascade(
-    cascade: { provider: string; model: string; label: string }[],
+/** Route handler wrapper around the shared failover runner (lib/providers/failover.ts). */
+async function tryFailover(
+    failover: { provider: string; model: string; label: string }[],
     messages: any[],
     maxTokens: number,
     encoder: TextEncoder,
@@ -489,27 +489,27 @@ async function tryCascade(
     userId: string,
     selectedModel: string
 ): Promise<{ ok: boolean; backend?: string; label?: string; latencyMs?: number; tokensOut?: number }> {
-    return tryCascadeModule({
-        cascade: cascade as CascadeStep[],
+    return tryFailoverModule({
+        failover: failover as FailoverStep[],
         messages, maxTokens, encoder, controller, userId, selectedModel,
         logEvent: (e) => { logEvent(e as any).catch(() => { }) },
     })
 }
 
 /** Smart-mode fallback retained for Live-mode search composition. */
-async function streamCascade(
+async function streamFailover(
     messages: any[],
     maxTokens: number,
     encoder: TextEncoder,
     controller: ReadableStreamDefaultController
 ): Promise<boolean> {
-    const result = await streamFromGroqModels(MODELS_CASCADE, messages, maxTokens, encoder, controller, '', 'smart')
+    const result = await streamFromGroqModels(MODELS_FAILOVER, messages, maxTokens, encoder, controller, '', 'smart')
     return result.ok
 }
 
-// ── DEAD CODE REMOVED — tryCascade and streamFromGroqModels were ~250 lines ──
+// ── DEAD CODE REMOVED — tryFailover and streamFromGroqModels were ~250 lines ──
 // of inline SSE streaming, <think>-block parsing, and key rotation. All of
-// that logic now lives in lib/providers/cascade.ts where it is unit-tested.
+// that logic now lives in lib/providers/failover.ts where it is unit-tested.
 // Kept inline: small shims above so the rest of the route can continue to use
 // these names while the big migration happens step by step.
 
@@ -660,7 +660,7 @@ async function streamFromGeminiGrounded(
 
 // ── Full (non-streaming) Groq call — for re-asking after search ───────────────
 async function askGroqFull(messages: any[], maxTokens = 2000): Promise<string> {
-    for (const model of MODELS_CASCADE) {
+    for (const model of MODELS_FAILOVER) {
         for (const key of env().providers.groq) {
             try {
                 const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
@@ -873,7 +873,7 @@ If you find yourself writing fewer than ${fileCount} rows/entries, STOP and re-r
         const dateContext = `\n\n**Current date and time (London):** ${nowDate}, ${nowTime}. Use this as the absolute source of truth for "today", "now", "this week", etc. — ignore any conflicting dates from your training data.`
 
         // Inject the exact knowledge cutoff AND the current underlying model
-        const primaryBackend = selectedModel.cascade[0]?.model ?? 'proprietary AI'
+        const primaryBackend = selectedModel.failover[0]?.model ?? 'proprietary AI'
         const friendlyBackend = (() => {
             const m = primaryBackend.toLowerCase()
             if (m.includes('gpt-oss-120b')) return 'GPT-OSS 120B by OpenAI'
@@ -916,7 +916,7 @@ If you find yourself writing fewer than ${fileCount} rows/entries, STOP and re-r
             { role: 'user', content: userContent },
         ]
 
-        // ── Live data tools — injected BEFORE the cascade ─────────────────
+        // ── Live data tools — injected BEFORE the failover ─────────────────
         // The tool registry (lib/tools/registry.ts) knows which tools to fire
         // for this message. Each tool's output is already wrapped with
         // structured boundary markers to defend against prompt injection.
@@ -985,7 +985,7 @@ If you find yourself writing fewer than ${fileCount} rows/entries, STOP and re-r
                             { role: 'assistant', content: 'I searched the web for that.' },
                             { role: 'user', content: `Here are live search results:\n\n${results}\n\nUsing these results, answer the original question thoroughly. Include relevant facts and cite sources where available.` },
                         ]
-                        const ok = await streamCascade(searchMessages, 2000, encoder, controller)
+                        const ok = await streamFailover(searchMessages, 2000, encoder, controller)
                         if (!ok) send(controller, { type: 'token', text: `Here's what I found:\n\n${results}` })
                     }
                     else if (image) {
@@ -1041,9 +1041,9 @@ If you find yourself writing fewer than ${fileCount} rows/entries, STOP and re-r
                         }
                     }
                     else {
-                        // Other models: route through the full cascade (Groq + Cerebras + SambaNova + OR :free)
-                        const cascadeResult = await tryCascade(
-                            selectedModel.cascade.map(c => ({ provider: c.provider, model: c.model, label: c.label })),
+                        // Other models: route through the full failover (Groq + Cerebras + SambaNova + OR :free)
+                        const failoverResult = await tryFailover(
+                            selectedModel.failover.map(c => ({ provider: c.provider, model: c.model, label: c.label })),
                             messages,
                             4000,
                             encoder,
@@ -1051,13 +1051,13 @@ If you find yourself writing fewer than ${fileCount} rows/entries, STOP and re-r
                             user.id,
                             selectedModelId
                         )
-                        if (cascadeResult.ok) {
-                            logEvent({ user_id: user.id, event_type: 'message', model_id: selectedModelId, backend: cascadeResult.label ?? cascadeResult.backend, status: 'success', latency_ms: cascadeResult.latencyMs, tokens_out: cascadeResult.tokensOut })
-                            lastTokensOut = cascadeResult.tokensOut
+                        if (failoverResult.ok) {
+                            logEvent({ user_id: user.id, event_type: 'message', model_id: selectedModelId, backend: failoverResult.label ?? failoverResult.backend, status: 'success', latency_ms: failoverResult.latencyMs, tokens_out: failoverResult.tokensOut })
+                            lastTokensOut = failoverResult.tokensOut
                         } else {
                             logEvent({ user_id: user.id, event_type: 'fallback', model_id: selectedModelId, status: 'all_providers_failed' })
                             const reply = await askOpenRouter(messages)
-                            send(controller, { type: 'token', text: reply || `All ${selectedModel.cascade.length} ${selectedModel.name} engines are rate-limited right now. Try **⚡ Fast** mode (unlimited) or wait a minute and retry.` })
+                            send(controller, { type: 'token', text: reply || `All ${selectedModel.failover.length} ${selectedModel.name} engines are rate-limited right now. Try **⚡ Fast** mode (unlimited) or wait a minute and retry.` })
                         }
                     }
                 } catch (err: any) {

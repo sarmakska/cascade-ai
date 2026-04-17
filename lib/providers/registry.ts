@@ -4,7 +4,7 @@
  * Every AI provider is defined here: its OpenAI-compatible endpoint, its
  * API key pool (loaded from environment variables), and its health state.
  *
- * The cascade runner (lib/providers/cascade.ts) dispatches on `ProviderType`
+ * The failover runner (lib/providers/failover.ts) dispatches on `ProviderType`
  * and uses the functions exported here to look up the endpoint and rotate
  * through keys.
  *
@@ -35,7 +35,7 @@ export function providerEndpoint(provider: ProviderType): string | null {
 
 /**
  * Return the list of API keys configured for a provider.
- * The cascade rotates through this list per request so no single key is
+ * The failover rotates through this list per request so no single key is
  * always hit first.
  */
 export function providerKeys(provider: ProviderType): string[] {
@@ -52,7 +52,7 @@ export function providerKeys(provider: ProviderType): string[] {
 
 /**
  * Does a provider have at least one configured key?
- * Used by health checks and cascade pruning.
+ * Used by health checks and failover pruning.
  */
 export function providerAvailable(provider: ProviderType): boolean {
     return providerKeys(provider).length > 0
@@ -68,8 +68,8 @@ export function providerHeaders(provider: ProviderType, key: string): Record<str
         Authorization: `Bearer ${key}`,
     }
     if (provider === 'openrouter' || provider === 'openrouter-free') {
-        headers['HTTP-Referer'] = process.env.NEXT_PUBLIC_APP_URL || 'https://github.com/sarmakska/cascade-ai'
-        headers['X-Title'] = process.env.NEXT_PUBLIC_APP_NAME || 'Cascade AI'
+        headers['HTTP-Referer'] = process.env.NEXT_PUBLIC_APP_URL || 'https://github.com/sarmakska/sarmalink-ai'
+        headers['X-Title'] = process.env.NEXT_PUBLIC_APP_NAME || 'SarmaLink-AI'
     }
     return headers
 }

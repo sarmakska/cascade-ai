@@ -1,11 +1,11 @@
 /**
- * Cascade runner — the heart of the multi-provider failover system.
+ * Failover runner — the heart of the multi-provider failover system.
  *
- * Given a list of cascade steps (each specifying a provider + model), this
+ * Given a list of failover steps (each specifying a provider + model), this
  * runner tries each step in order. Within each step, it rotates through the
  * provider's API key pool. If the model returns 429 (rate limit) or any
  * non-2xx error, it moves to the next key. If all keys exhaust, it moves
- * to the next cascade step. If the cascade fully exhausts, it returns
+ * to the next failover step. If the failover fully exhausts, it returns
  * `{ ok: false }` so the caller can serve a graceful error.
  *
  * Streaming: tokens are parsed from the provider's SSE response and pushed
@@ -16,9 +16,9 @@
  */
 
 import { providerEndpoint, providerKeys, providerHeaders } from './registry'
-import type { CascadeStep } from '@/lib/ai-models'
+import type { FailoverStep } from '@/lib/ai-models'
 
-export interface CascadeResult {
+export interface FailoverResult {
     ok: boolean
     backend?: string
     label?: string
@@ -40,8 +40,8 @@ export interface LogEvent {
     }): void
 }
 
-interface CascadeOptions {
-    cascade: CascadeStep[]
+interface FailoverOptions {
+    failover: FailoverStep[]
     messages: unknown[]
     maxTokens: number
     encoder: TextEncoder
@@ -52,11 +52,11 @@ interface CascadeOptions {
 }
 
 /**
- * Dispatches a chat request across a cascade of provider/model steps.
+ * Dispatches a chat request across a failover of provider/model steps.
  * First successful step wins; all others are skipped.
  */
-export async function tryCascade(opts: CascadeOptions): Promise<CascadeResult> {
-    const { cascade, messages, maxTokens, encoder, controller, userId, selectedModel, logEvent } = opts
+export async function tryFailover(opts: FailoverOptions): Promise<FailoverResult> {
+    const { failover, messages, maxTokens, encoder, controller, userId, selectedModel, logEvent } = opts
     const log = logEvent ?? (() => { })
 
     // Round-robin key rotation per request — spreads load so key 1 isn't
@@ -64,7 +64,7 @@ export async function tryCascade(opts: CascadeOptions): Promise<CascadeResult> {
     // giving every key in each pool roughly equal usage over time.
     const rotationSeed = Date.now()
 
-    for (const step of cascade) {
+    for (const step of failover) {
         const endpoint = providerEndpoint(step.provider)
         const allKeys = providerKeys(step.provider)
         if (!endpoint || !allKeys.length) continue

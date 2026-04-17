@@ -93,7 +93,7 @@ async function editViaSD15(
     return { ok: false, error: 'no_image_in_response' }
 }
 
-// Image editing cascade: FLUX.2 klein 9B → 4B → SD1.5 img2img.
+// Image editing failover: FLUX.2 klein 9B → 4B → SD1.5 img2img.
 // FLUX.2 klein is a unified generation/editing model that understands intent
 // ("change the apple to green") rather than just applying noise like SD1.5.
 export async function POST(req: NextRequest) {
@@ -138,7 +138,7 @@ export async function POST(req: NextRequest) {
                 user_id: user.id,
                 event_type: 'error',
                 model_id: 'image-edit',
-                backend: 'flux-2-klein-cascade',
+                backend: 'flux-2-klein-failover',
                 status: 'failed',
                 meta: { error: lastError.slice(0, 200) },
             }).then(() => { }, () => { })

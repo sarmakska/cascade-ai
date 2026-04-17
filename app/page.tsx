@@ -1,7 +1,7 @@
 import type { Metadata } from "next"
 
 export const metadata: Metadata = {
-  title: "Cascade AI — Open Source Multi-Provider AI Assistant",
+  title: "SarmaLink-AI — Open Source Multi-Provider AI Assistant",
   description: "36 AI engines, 7 providers, automatic failover. Built by Sarma Linux. Free to deploy.",
 }
 
@@ -10,7 +10,7 @@ const PROVIDERS = [
   { name: "SambaNova", models: "DeepSeek V3.2 (685B MoE), V3.1, Llama 4 Maverick", speed: "Frontier reasoning", url: "https://cloud.sambanova.ai", color: "#8b5cf6" },
   { name: "Cerebras", models: "Qwen 3 235B, Llama 3.1 8B", speed: "2,000 tok/sec (WSE-3 chip)", url: "https://cloud.cerebras.ai", color: "#06b6d4" },
   { name: "Google Gemini", models: "2.5 Flash, Flash Lite, Gemini 3 Flash Preview", speed: "Live Google Search grounding", url: "https://aistudio.google.com", color: "#4285f4" },
-  { name: "OpenRouter", models: "17+ free models — GPT-OSS, Nemotron, GLM-4.5, Gemma 4", speed: "Deep cascade fallback", url: "https://openrouter.ai", color: "#10b981" },
+  { name: "OpenRouter", models: "17+ free models — GPT-OSS, Nemotron, GLM-4.5, Gemma 4", speed: "Deep failover fallback", url: "https://openrouter.ai", color: "#10b981" },
   { name: "Cloudflare", models: "FLUX.2 klein 9B/4B (image gen + editing)", speed: "~1.5s per image", url: "https://dash.cloudflare.com", color: "#f59e0b" },
   { name: "Tavily", models: "Structured web search", speed: "1,000 searches/month free", url: "https://app.tavily.com", color: "#ef4444" },
 ]
@@ -25,7 +25,7 @@ const MODES = [
 ]
 
 const FEATURES = [
-  { icon: "🔄", title: "Cascade Failover", desc: "Up to 14 engines per mode. If one is busy, the next fires in <50ms. Users never see errors." },
+  { icon: "🔄", title: "Failover Failover", desc: "Up to 14 engines per mode. If one is busy, the next fires in <50ms. Users never see errors." },
   { icon: "🧠", title: "Persistent Memory", desc: "Learns who you are across conversations — name, role, preferences. Like ChatGPT memory." },
   { icon: "🎨", title: "Image Gen & Edit", desc: "FLUX.2 klein generates images from text. Edit existing images with natural language — colour changes actually work." },
   { icon: "📎", title: "Document Analysis", desc: "Upload PDFs, Excel, Word — up to 10 files. AI reads and answers questions about the content." },
@@ -36,7 +36,7 @@ const FEATURES = [
 ]
 
 const STEPS = [
-  { num: "1", title: "Clone the repo", cmd: "git clone https://github.com/sarmakska/cascade-ai.git && cd cascade-ai && npm install" },
+  { num: "1", title: "Clone the repo", cmd: "git clone https://github.com/sarmakska/sarmalink-ai.git && cd sarmalink-ai && npm install" },
   { num: "2", title: "Get free API keys", cmd: "Sign up at Groq, SambaNova, Cerebras, Gemini, OpenRouter, Cloudflare, Tavily — all free, no card" },
   { num: "3", title: "Configure", cmd: "cp .env.example .env.local — then paste your keys" },
   { num: "4", title: "Set up database", cmd: "Create a Supabase project (free) — run the migration SQL" },
@@ -113,8 +113,8 @@ export default function HomePage() {
         .ca-step .stitle { font-family: 'Instrument Serif', serif; font-size: 17px; color: #ebe8e3; margin-bottom: 8px; }
         .ca-step .scmd { font-size: 11px; color: rgba(255,255,255,0.45); line-height: 1.6; }
 
-        .ca-cascade { max-width: 700px; margin: 0 auto; padding: 40px; background: rgba(124,58,237,0.04); border: 1px solid rgba(124,58,237,0.15); border-radius: 24px; }
-        .ca-cascade pre { font-size: 13px; color: rgba(255,255,255,0.6); line-height: 1.8; white-space: pre-wrap; font-family: 'SF Mono', 'Fira Code', monospace; }
+        .ca-failover { max-width: 700px; margin: 0 auto; padding: 40px; background: rgba(124,58,237,0.04); border: 1px solid rgba(124,58,237,0.15); border-radius: 24px; }
+        .ca-failover pre { font-size: 13px; color: rgba(255,255,255,0.6); line-height: 1.8; white-space: pre-wrap; font-family: 'SF Mono', 'Fira Code', monospace; }
 
         .ca-footer { text-align: center; padding: 80px 32px 40px; border-top: 1px solid rgba(255,255,255,0.06); }
         .ca-footer p { font-size: 14px; color: rgba(255,255,255,0.4); line-height: 1.6; max-width: 600px; margin: 0 auto; }
@@ -126,10 +126,10 @@ export default function HomePage() {
         {/* HERO */}
         <div className="ca-hero">
           <div className="badge">Open Source · MIT License</div>
-          <h1>Cascade <em>AI</em></h1>
+          <h1>Failover <em>AI</em></h1>
           <p>An open-source AI assistant that routes every message through up to 14 engines across 7 providers. If one is busy, the next fires in under 50 milliseconds. Built by Sarma Linux. Free to deploy.</p>
           <div className="btns">
-            <a href="https://github.com/sarmakska/cascade-ai" className="btn-primary">View on GitHub →</a>
+            <a href="https://github.com/sarmakska/sarmalink-ai" className="btn-primary">View on GitHub →</a>
             <a href="#get-started" className="btn-secondary">Get Started</a>
           </div>
         </div>
@@ -138,16 +138,16 @@ export default function HomePage() {
         <div className="ca-stats">
           <div className="ca-stat"><div className="num"><em>36</em></div><div className="lbl">AI Engines</div></div>
           <div className="ca-stat"><div className="num"><em>7</em></div><div className="lbl">Providers</div></div>
-          <div className="ca-stat"><div className="num"><em>14</em></div><div className="lbl">Max Cascade Depth</div></div>
+          <div className="ca-stat"><div className="num"><em>14</em></div><div className="lbl">Max Failover Depth</div></div>
           <div className="ca-stat"><div className="num"><em>41</em>ms</div><div className="lbl">Fastest Response</div></div>
           <div className="ca-stat"><div className="num"><em>685</em>B</div><div className="lbl">Primary Model</div></div>
         </div>
 
-        {/* HOW CASCADE WORKS */}
+        {/* HOW FAILOVER WORKS */}
         <div className="ca-section">
-          <h2 className="sh">How the <em>cascade</em> works</h2>
+          <h2 className="sh">How the <em>failover</em> works</h2>
           <p className="ss">Every message is routed through multiple AI engines in order of quality. If one is at capacity, the next takes over instantly. Users never wait. Users never see errors.</p>
-          <div className="ca-cascade">
+          <div className="ca-failover">
             <pre>{`User: "What is the UK minimum wage now?"
   ↓
 Auto-router detects "now" → routes to Live mode
@@ -157,7 +157,7 @@ Step 2: Gemini 2.5 Flash Lite + Search  → 200 OK ✓
   ↓
 Streams answer with cited sources in real time
   ↓
-Shows: "Cascade AI · Live · Gemini 2.5 Flash Lite · 1.8s"
+Shows: "SarmaLink-AI · Live · Gemini 2.5 Flash Lite · 1.8s"
   ↓
 Memory extracts: "User asked about UK employment law"
   → remembered in all future conversations`}</pre>
@@ -167,13 +167,13 @@ Memory extracts: "User asked about UK employment law"
         {/* 6 MODES */}
         <div className="ca-section">
           <h2 className="sh">Six <em>modes</em></h2>
-          <p className="ss">Each mode is backed by a different cascade of engines, optimised for a specific type of task. The auto-router picks the right one from your message — or you choose manually.</p>
+          <p className="ss">Each mode is backed by a different failover of engines, optimised for a specific type of task. The auto-router picks the right one from your message — or you choose manually.</p>
           <div className="ca-mode">
             {MODES.map(m => (
               <div key={m.name} className="ca-mode-card">
                 <div className="emoji">{m.emoji}</div>
                 <div className="name">{m.name}</div>
-                <div className="meta">{m.limit} · {m.depth}-engine cascade</div>
+                <div className="meta">{m.limit} · {m.depth}-engine failover</div>
                 <div className="engine">{m.engine}</div>
                 <div className="desc">{m.desc}</div>
               </div>
@@ -215,7 +215,7 @@ Memory extracts: "User asked about UK employment law"
         {/* GET STARTED */}
         <div className="ca-section" id="get-started">
           <h2 className="sh">Get <em>started</em></h2>
-          <p className="ss">Five steps to your own Cascade AI. Total setup time: under 30 minutes. Total cost: nothing.</p>
+          <p className="ss">Five steps to your own SarmaLink-AI. Total setup time: under 30 minutes. Total cost: nothing.</p>
           <div className="ca-steps">
             {STEPS.map(s => (
               <div key={s.num} className="ca-step">
@@ -230,7 +230,7 @@ Memory extracts: "User asked about UK employment law"
         {/* FOOTER */}
         <div className="ca-footer">
           <p>
-            Cascade AI is open source under the <a href="https://github.com/sarmakska/cascade-ai/blob/main/LICENSE">MIT License</a>.
+            SarmaLink-AI is open source under the <a href="https://github.com/sarmakska/sarmalink-ai/blob/main/LICENSE">MIT License</a>.
             Built by <a href="https://sarmalinux.com">Sarma Linux</a>.
             <br /><br />
             A huge thank you to Groq, SambaNova, Cerebras, Google, OpenRouter, Cloudflare, Tavily,

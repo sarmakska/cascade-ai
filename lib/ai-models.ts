@@ -1,6 +1,6 @@
 // ============================================================================
-// Cascade AI — Model Registry
-// Single source of truth for model definitions, limits, and cascade chains.
+// SarmaLink-AI — Model Registry
+// Single source of truth for model definitions, limits, and failover chains.
 // Shared between backend (/api/ai-chat, /api/ai-quota) and frontend selector.
 // ============================================================================
 
@@ -8,7 +8,7 @@ export type ModelId = "auto" | "smart" | "reasoner" | "live" | "fast" | "vision"
 
 // ── Auto-router: picks the best model per message based on intent ───────────
 // Simple regex-based classifier. Zero extra API calls, instant.
-// Runs server-side before the cascade fires.
+// Runs server-side before the failover fires.
 export function autoRouteIntent(message: string): Exclude<ModelId, "auto"> {
   const text = message.trim()
   const lower = text.toLowerCase()
@@ -56,7 +56,7 @@ export type ProviderType =
   | "openrouter"
   | "openrouter-free"
 
-export interface CascadeStep {
+export interface FailoverStep {
   provider: ProviderType
   model: string
   label: string              // Human-readable label shown in UI (e.g. "Cerebras Qwen 3 235B")
@@ -74,7 +74,7 @@ export interface ModelDefinition {
   recommended: boolean
   perUserDailyLimit: number
   totalDailyCapacity: number
-  cascade: CascadeStep[]
+  failover: FailoverStep[]
 }
 
 // ── The 7 user-facing models (Auto + 6 specific) ─────────────────────────────
@@ -92,8 +92,8 @@ export const MODELS: Record<ModelId, ModelDefinition> = {
     recommended: true,
     perUserDailyLimit: 2000,
     totalDailyCapacity: 20000,
-    cascade: [
-      // Placeholder — autoRouteIntent() decides the real cascade at runtime
+    failover: [
+      // Placeholder — autoRouteIntent() decides the real failover at runtime
       { provider: "groq", model: "openai/gpt-oss-120b", label: "Auto router" },
     ],
   },
@@ -110,10 +110,10 @@ export const MODELS: Record<ModelId, ModelDefinition> = {
     recommended: true,
     perUserDailyLimit: 1000,
     totalDailyCapacity: 10000,
-    // Cascade verified live 2026-04-16 via scripts/discover-models.mjs.
+    // Failover verified live 2026-04-16 via scripts/discover-models.mjs.
     // Quality-first: SambaNova DeepSeek V3.2 (frontier) → Groq GPT-OSS 120B (44ms)
     // → SambaNova Llama-4-Maverick → Groq Llama 3.3 70B → deep :free fallback pool.
-    cascade: [
+    failover: [
       { provider: "sambanova", model: "DeepSeek-V3.2", label: "SambaNova DeepSeek V3.2" },
       { provider: "groq", model: "openai/gpt-oss-120b", label: "Groq GPT-OSS 120B" },
       { provider: "sambanova", model: "Llama-4-Maverick-17B-128E-Instruct", label: "SambaNova Llama 4 Maverick" },
@@ -143,7 +143,7 @@ export const MODELS: Record<ModelId, ModelDefinition> = {
     recommended: true,
     perUserDailyLimit: 500,
     totalDailyCapacity: 5000,
-    cascade: [
+    failover: [
       { provider: "sambanova", model: "DeepSeek-V3.2", label: "SambaNova DeepSeek V3.2" },
       { provider: "sambanova", model: "DeepSeek-V3.1", label: "SambaNova DeepSeek V3.1" },
       { provider: "groq", model: "openai/gpt-oss-120b", label: "Groq GPT-OSS 120B" },
@@ -169,7 +169,7 @@ export const MODELS: Record<ModelId, ModelDefinition> = {
     recommended: true,
     perUserDailyLimit: 1000,
     totalDailyCapacity: 10000,
-    cascade: [
+    failover: [
       { provider: "gemini-grounded", model: "gemini-2.5-flash", label: "Gemini 2.5 Flash + Google Search" },
       { provider: "gemini-grounded", model: "gemini-2.5-flash-lite", label: "Gemini 2.5 Flash Lite + Google Search" },
       { provider: "gemini-grounded", model: "gemini-3-flash-preview", label: "Gemini 3 Flash + Google Search" },
@@ -189,7 +189,7 @@ export const MODELS: Record<ModelId, ModelDefinition> = {
     recommended: true,
     perUserDailyLimit: 5000,
     totalDailyCapacity: 50000,
-    cascade: [
+    failover: [
       { provider: "groq", model: "openai/gpt-oss-20b", label: "Groq GPT-OSS 20B (41ms)" },
       { provider: "groq", model: "llama-3.1-8b-instant", label: "Groq Llama 3.1 8B Instant" },
       { provider: "cerebras", model: "llama3.1-8b", label: "Cerebras Llama 3.1 8B (2000 tok/sec)" },
@@ -213,7 +213,7 @@ export const MODELS: Record<ModelId, ModelDefinition> = {
     recommended: false,
     perUserDailyLimit: 500,
     totalDailyCapacity: 5000,
-    cascade: [
+    failover: [
       { provider: "groq", model: "meta-llama/llama-4-scout-17b-16e-instruct", label: "Groq Llama-4-Scout 17B" },
       { provider: "gemini-grounded", model: "gemini-2.5-flash", label: "Gemini 2.5 Flash (vision)" },
       { provider: "openrouter-free", model: "google/gemma-4-31b-it:free", label: "OpenRouter Gemma 4 31B (free)" },
@@ -235,7 +235,7 @@ export const MODELS: Record<ModelId, ModelDefinition> = {
     recommended: true,
     perUserDailyLimit: 800,
     totalDailyCapacity: 8000,
-    cascade: [
+    failover: [
       { provider: "sambanova", model: "DeepSeek-V3.2", label: "SambaNova DeepSeek V3.2 (code)" },
       { provider: "groq", model: "openai/gpt-oss-120b", label: "Groq GPT-OSS 120B" },
       { provider: "cerebras", model: "qwen-3-235b-a22b-instruct-2507", label: "Cerebras Qwen 3 235B (code)" },

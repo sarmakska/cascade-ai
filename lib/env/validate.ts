@@ -89,7 +89,7 @@ export function loadEnv(): EnvConfig {
     // the landing page to render without any keys set.
     if (totalChatKeys === 0 && process.env.NODE_ENV === 'production') {
         console.warn(
-            '[cascade-ai] No chat provider API keys detected. ' +
+            '[sarmalink-ai] No chat provider API keys detected. ' +
             'Chat functionality will not work until you configure at least one of: ' +
             'GROQ_API_KEY, SAMBANOVA_API_KEY, CEREBRAS_API_KEY, GOOGLE_GEMINI_API_KEY, or OPENROUTER_API_KEY. ' +
             'See .env.example for details.'
@@ -111,7 +111,7 @@ export function loadEnv(): EnvConfig {
         providers,
         r2: r2Configured ? {
             endpoint: process.env.R2_ENDPOINT!,
-            bucket: process.env.R2_BUCKET_NAME || 'cascade-ai-attachments',
+            bucket: process.env.R2_BUCKET_NAME || 'sarmalink-ai-attachments',
             accessKeyId: process.env.R2_ACCESS_KEY_ID!,
             secretAccessKey: process.env.R2_SECRET_ACCESS_KEY!,
         } : null,

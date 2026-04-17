@@ -1,12 +1,12 @@
-# Contributing to Cascade AI
+# Contributing to SarmaLink-AI
 
 Thanks for wanting to contribute. Here's how.
 
 ## Development setup
 
 ```bash
-git clone https://github.com/sarmakska/cascade-ai.git
-cd cascade-ai
+git clone https://github.com/sarmakska/sarmalink-ai.git
+cd sarmalink-ai
 npm install
 cp .env.example .env.local
 # Add your API keys to .env.local
@@ -41,8 +41,8 @@ CI runs all of these on every push and pull request. Your PR will be blocked if 
    case 'your-provider': return 'https://api.yourprovider.com/v1/chat/completions'
    ```
 3. Add keys to `.env.example` with clear documentation.
-4. Add the provider's models to one or more cascade definitions.
-5. Write a test in `__tests__/cascade.test.ts` verifying the provider is tried in the right order.
+4. Add the provider's models to one or more failover definitions.
+5. Write a test in `__tests__/failover.test.ts` verifying the provider is tried in the right order.
 
 ## Adding a new live tool
 
@@ -58,7 +58,7 @@ Follow conventional commits format:
 
 ```
 feat: add support for Mistral AI provider
-fix: correct cascade ordering when all Gemini keys are rate-limited
+fix: correct failover ordering when all Gemini keys are rate-limited
 docs: document new container tracking tool
 refactor: extract provider registry from route handler
 test: add unit tests for auto-router

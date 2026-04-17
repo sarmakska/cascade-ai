@@ -1,5 +1,5 @@
 // ============================================================================
-// Cascade AI — Live Data Tools (free, no API keys needed)
+// SarmaLink-AI — Live Data Tools (free, no API keys needed)
 // Called by the chat route when it detects intent for real-time data.
 // All APIs are truly free, no keys, no rate limits worth worrying about.
 // ============================================================================

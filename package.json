@@ -1,5 +1,5 @@
 {
-  "name": "cascade-ai",
+  "name": "sarmalink-ai",
   "version": "1.0.0",
   "description": "Open-source multi-provider AI assistant with automatic failover. Built by Sarma Linux.",
   "private": false,
@@ -7,7 +7,7 @@
   "author": "Sarma Linux <hello@sarmalinux.com> (https://sarmalinux.com)",
   "repository": {
     "type": "git",
-    "url": "https://github.com/sarmakska/cascade-ai"
+    "url": "https://github.com/sarmakska/sarmalink-ai"
   },
   "scripts": {
     "dev": "next dev",

@@ -7,7 +7,7 @@ import { supabaseAdmin } from '@/lib/supabase/admin'
 
 // Image generation is 100% free — OpenRouter $5 image credit was refunded on
 // 2026-04-16. FLUX.2 klein (9B/4B) is the new flagship — sharper, better
-// prompt adherence than FLUX.1-schnell. Cascade: 9B → 4B → flux-1-schnell.
+// prompt adherence than FLUX.1-schnell. Failover: 9B → 4B → flux-1-schnell.
 
 type ImgOut = { dataUrl: string; mimeType: string; source: string; paid: boolean }
 

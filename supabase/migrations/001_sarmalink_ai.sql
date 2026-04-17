@@ -1,4 +1,4 @@
--- Cascade AI — Database Schema
+-- SarmaLink-AI — Database Schema
 -- Run this in your Supabase SQL Editor (https://supabase.com/dashboard/project/YOUR_PROJECT/sql/new)
 
 -- Chat sessions (50 per user, oldest auto-deleted)
@@ -22,7 +22,7 @@ CREATE TABLE IF NOT EXISTS ai_chat_usage (
     CONSTRAINT ai_chat_usage_unique UNIQUE (user_id, model_id, date)
 );
 
--- Event log (cascade debugging, latency tracking)
+-- Event log (failover debugging, latency tracking)
 CREATE TABLE IF NOT EXISTS ai_events (
     id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id     uuid,

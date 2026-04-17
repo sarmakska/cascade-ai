@@ -8,7 +8,7 @@ import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand, Head
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 
 const ENDPOINT = process.env.R2_ENDPOINT ?? ''
-const BUCKET = process.env.R2_BUCKET_NAME ?? 'cascade-ai-attachments'
+const BUCKET = process.env.R2_BUCKET_NAME ?? 'sarmalink-ai-attachments'
 const ACCESS_KEY_ID = process.env.R2_ACCESS_KEY_ID ?? ''
 const SECRET_ACCESS_KEY = process.env.R2_SECRET_ACCESS_KEY ?? ''
 

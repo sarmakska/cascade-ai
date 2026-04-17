@@ -1,7 +1,7 @@
 /**
  * Event log repository — typed access to ai_events.
  *
- * Every cascade step logs here: which provider was tried, which key, what
+ * Every failover step logs here: which provider was tried, which key, what
  * status code, how long it took. Powers the admin dashboard and lets you
  * spot dead models in aggregate.
  */
