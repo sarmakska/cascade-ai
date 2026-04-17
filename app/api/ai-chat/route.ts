@@ -5,63 +5,16 @@ import { createClient } from '@/lib/supabase/server'
 import { supabaseAdmin } from '@/lib/supabase/admin'
 import { MODELS, getModel, isValidModelId, autoRouteIntent, type ModelId } from '@/lib/ai-models'
 import { getUserMemories } from '@/lib/repositories/memories'
-import { getExchangeRates, getWeather, getTrackingLinks, convertCurrency } from '@/lib/ai-tools'
+import { env } from '@/lib/env/validate'
+import { providerEndpoint, providerKeys, providerHeaders } from '@/lib/providers/registry'
+import { runTools, formatToolResults } from '@/lib/tools/run'
+import { wrapMemories } from '@/lib/prompts/sanitize'
+import { webSearch } from '@/lib/tools/search'
 
-// ── Keys ──────────────────────────────────────────────────────────────────────
-const GROQ_KEYS = Array.from({ length: 9 }, (_, i) =>
-    process.env[i === 0 ? 'GROQ_API_KEY' : `GROQ_API_KEY_${i + 1}`]
-).filter(Boolean) as string[]
-
-const OR_KEYS = [process.env.OPENROUTER_API_KEY, process.env.OPENROUTER_API_KEY_2].filter(Boolean) as string[]
-
-const CEREBRAS_KEYS = Array.from({ length: 4 }, (_, i) =>
-    process.env[i === 0 ? 'CEREBRAS_API_KEY' : `CEREBRAS_API_KEY_${i + 1}`]
-).filter(Boolean) as string[]
-
-const SAMBANOVA_KEYS = Array.from({ length: 4 }, (_, i) =>
-    process.env[i === 0 ? 'SAMBANOVA_API_KEY' : `SAMBANOVA_API_KEY_${i + 1}`]
-).filter(Boolean) as string[]
-
-const GEMINI_KEYS = [
-    process.env.GOOGLE_GEMINI_API_KEY,
-    process.env.GOOGLE_GEMINI_API_KEY_2,
-    process.env.GOOGLE_GEMINI_API_KEY_3,
-    process.env.GEMINI_CHATBOT_KEY_1,
-    process.env.GEMINI_CHATBOT_KEY_2,
-    process.env.GEMINI_CHATBOT_KEY_3,
-    process.env.GOOGLE_GEMINI_API_KEY_4,
-    process.env.GOOGLE_GEMINI_API_KEY_5,
-    process.env.GOOGLE_GEMINI_API_KEY_6,
-    process.env.GOOGLE_GEMINI_API_KEY_7,
-    process.env.GOOGLE_GEMINI_API_KEY_8,
-    process.env.GOOGLE_GEMINI_API_KEY_9,
-].filter(Boolean) as string[]
-
-// ── Provider dispatch for generic OpenAI-compatible cascades ─────────────────
-function providerEndpoint(provider: string): string | null {
-    switch (provider) {
-        case 'groq': return 'https://api.groq.com/openai/v1/chat/completions'
-        case 'cerebras': return 'https://api.cerebras.ai/v1/chat/completions'
-        case 'sambanova': return 'https://api.sambanova.ai/v1/chat/completions'
-        case 'openrouter':
-        case 'openrouter-free': return 'https://openrouter.ai/api/v1/chat/completions'
-        default: return null
-    }
-}
-function providerKeys(provider: string): string[] {
-    switch (provider) {
-        case 'groq': return GROQ_KEYS
-        case 'cerebras': return CEREBRAS_KEYS
-        case 'sambanova': return SAMBANOVA_KEYS
-        case 'openrouter':
-        case 'openrouter-free': return OR_KEYS
-        default: return []
-    }
-}
-
-const TAVILY_KEYS = Array.from({ length: 8 }, (_, i) =>
-    process.env[`TAVILY_API_KEY_${i + 1}`]
-).filter(Boolean) as string[]
+// Provider key pools come from the env singleton (lib/env/validate.ts).
+// Provider endpoint + key lookup is in lib/providers/registry.ts.
+const GEMINI_KEYS = env().providers.gemini
+const TAVILY_KEYS = env().providers.tavily
 
 const DAILY_LIMIT = 1000
 
@@ -183,7 +136,7 @@ function detectSearchIntent(msg: string): boolean {
 type RoutedIntent = 'smart' | 'coder' | 'live' | 'reasoner' | 'fast' | 'image'
 
 async function classifyIntentAI(message: string, history: any[]): Promise<RoutedIntent> {
-    if (!CEREBRAS_KEYS.length) return 'smart'
+    if (!env().providers.cerebras.length) return 'smart'
     const text = (message || '').slice(0, 600)
     if (!text.trim()) return 'smart'
 
@@ -206,8 +159,8 @@ ${lastAssistant ? `Prior assistant message (for context):\n"""${lastAssistant.re
 
 Reply with ONE word only from the 6 categories above.`
 
-    const rotationOffset = Date.now() % CEREBRAS_KEYS.length
-    const keys = [...CEREBRAS_KEYS.slice(rotationOffset), ...CEREBRAS_KEYS.slice(0, rotationOffset)]
+    const rotationOffset = Date.now() % env().providers.cerebras.length
+    const keys = [...env().providers.cerebras.slice(rotationOffset), ...env().providers.cerebras.slice(0, rotationOffset)]
 
     for (const key of keys) {
         try {
@@ -324,13 +277,13 @@ async function buildImagePromptFromContext(userMsg: string, history: any[]): Pro
 
     // 3. Fall back to the last assistant description, but STRICTLY distilled
     const lastAssistant = history?.slice().reverse().find((m: any) => m.role === 'assistant')?.content?.slice(0, 1500) ?? ''
-    if (!lastAssistant || !CEREBRAS_KEYS.length) {
+    if (!lastAssistant || !env().providers.cerebras.length) {
         return trimmed || 'a clear, well-composed image'
     }
     try {
         const res = await fetch('https://api.cerebras.ai/v1/chat/completions', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${CEREBRAS_KEYS[0]}` },
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${env().providers.cerebras[0]}` },
             body: JSON.stringify({
                 model: 'llama3.1-8b',
                 messages: [{
@@ -352,7 +305,7 @@ async function buildImagePromptFromContext(userMsg: string, history: any[]): Pro
 }
 
 // ── Web search: Tavily → DuckDuckGo HTML fallback ─────────────────────────────
-async function webSearch(query: string): Promise<string> {
+async function runWebSearch(query: string): Promise<string> {
     // 1. Try Tavily keys
     for (const key of TAVILY_KEYS) {
         try {
@@ -503,7 +456,13 @@ async function logEvent(args: {
     } catch { /* never block the chat for logging */ }
 }
 
-// ── Stream from a custom Groq cascade (for model-specific routing) ────────────
+import { tryCascade as tryCascadeModule } from '@/lib/providers/cascade'
+import type { CascadeStep } from '@/lib/ai-models'
+
+// ── Inline cascade helpers — retained for paths that need Groq-only fallback ─
+// Main cascade goes through lib/providers/cascade.ts (tryCascade). These
+// helpers wrap that module for the specific "Groq-only" path used by
+// Live-mode fallback and web search composition.
 async function streamFromGroqModels(
     models: string[],
     messages: any[],
@@ -513,126 +472,14 @@ async function streamFromGroqModels(
     userId: string,
     selectedModel: string
 ): Promise<{ ok: boolean; backend?: string; latencyMs?: number; tokensOut?: number }> {
-    const rotationSeed = Date.now()
-    const offset = GROQ_KEYS.length ? rotationSeed % GROQ_KEYS.length : 0
-    const rotatedKeys = [...GROQ_KEYS.slice(offset), ...GROQ_KEYS.slice(0, offset)]
-    for (const model of models) {
-        let keyIdx = 0
-        for (const key of rotatedKeys) {
-            keyIdx++
-            const startedAt = Date.now()
-            try {
-                const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
-                    body: JSON.stringify({ model, messages, temperature: 0.7, max_tokens: maxTokens, top_p: 0.9, stream: true }),
-                })
-                if (res.status === 429) {
-                    logEvent({ user_id: userId, event_type: 'rate_limit', model_id: selectedModel, backend: model, key_index: keyIdx, status: '429' })
-                    continue
-                }
-                if (!res.ok) {
-                    logEvent({ user_id: userId, event_type: 'error', model_id: selectedModel, backend: model, key_index: keyIdx, status: String(res.status) })
-                    continue
-                }
-
-                const reader = res.body!.getReader()
-                const dec = new TextDecoder()
-                let buf = ''
-                let charCount = 0
-                // Filter state for stripping <think>...</think> blocks AND capturing them as thinking events
-                let pendingText = ''
-                let inThinkBlock = false
-
-                const sendVisible = (text: string) => {
-                    const clean = redactProviderNames(text)
-                    if (!clean) return
-                    charCount += clean.length
-                    controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'token', text: clean })}\n\n`))
-                }
-                const sendThinking = (text: string) => {
-                    const clean = redactThinkingMeta(redactProviderNames(text))
-                    if (!clean) return
-                    controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'thinking', text: clean })}\n\n`))
-                }
-
-                const flushVisibleText = (text: string) => {
-                    pendingText += text
-                    while (pendingText.length > 0) {
-                        if (inThinkBlock) {
-                            const closeIdx = pendingText.indexOf('</think>')
-                            if (closeIdx === -1) {
-                                if (pendingText) sendThinking(pendingText)
-                                pendingText = ''
-                                return
-                            }
-                            const thinkPart = pendingText.slice(0, closeIdx)
-                            if (thinkPart) sendThinking(thinkPart)
-                            pendingText = pendingText.slice(closeIdx + '</think>'.length)
-                            inThinkBlock = false
-                        } else {
-                            const openIdx = pendingText.indexOf('<think>')
-                            if (openIdx === -1) {
-                                if (pendingText.length > 7) {
-                                    const safe = pendingText.slice(0, pendingText.length - 7)
-                                    const tail = pendingText.slice(pendingText.length - 7)
-                                    if (safe) sendVisible(safe)
-                                    pendingText = tail
-                                }
-                                return
-                            }
-                            const visible = pendingText.slice(0, openIdx)
-                            if (visible) sendVisible(visible)
-                            pendingText = pendingText.slice(openIdx + '<think>'.length)
-                            inThinkBlock = true
-                        }
-                    }
-                }
-
-                while (true) {
-                    const { done, value } = await reader.read()
-                    if (done) break
-                    buf += dec.decode(value, { stream: true })
-                    const lines = buf.split('\n')
-                    buf = lines.pop() ?? ''
-                    for (const line of lines) {
-                        if (!line.startsWith('data: ') || line.includes('[DONE]')) continue
-                        try {
-                            const data = JSON.parse(line.slice(6))
-                            const token = data.choices?.[0]?.delta?.content || ''
-                            const reasoning = data.choices?.[0]?.delta?.reasoning || ''
-                            if (reasoning) sendThinking(reasoning)
-                            if (token) flushVisibleText(token)
-                        } catch { /* skip malformed SSE line */ }
-                    }
-                }
-                if (inThinkBlock && pendingText.length > 0) {
-                    sendThinking(pendingText)
-                    pendingText = ''
-                } else if (pendingText.length > 0) {
-                    sendVisible(pendingText)
-                    pendingText = ''
-                }
-                // If nothing visible came through, this attempt was empty — rotate to next key
-                if (charCount === 0) {
-                    logEvent({ user_id: userId, event_type: 'error', model_id: selectedModel, backend: model, key_index: keyIdx, status: 'empty_stream' })
-                    continue
-                }
-                const latency = Date.now() - startedAt
-                return { ok: true, backend: model, latencyMs: latency, tokensOut: Math.ceil(charCount / 4) }
-            } catch (e: any) {
-                logEvent({ user_id: userId, event_type: 'error', model_id: selectedModel, backend: model, key_index: keyIdx, status: 'exception', meta: { msg: e?.message?.slice(0, 200) } })
-                continue
-            }
-        }
-    }
-    return { ok: false }
+    const cascade: CascadeStep[] = models.map(m => ({ provider: 'groq', model: m, label: `Groq ${m}` }))
+    return tryCascadeModule({
+        cascade, messages, maxTokens, encoder, controller, userId, selectedModel,
+        logEvent: (e) => { logEvent(e as any).catch(() => { }) },
+    })
 }
 
-// ── Generic cascade dispatcher — works across Groq, Cerebras, SambaNova, OR ─
-// Iterates cascade steps in order. For each step, tries every key in the
-// provider's pool before falling through. Same streaming + <think> parsing
-// logic as streamFromGroqModels, just parameterised by provider endpoint.
+/** Route handler wrapper around the shared cascade runner (lib/providers/cascade.ts). */
 async function tryCascade(
     cascade: { provider: string; model: string; label: string }[],
     messages: any[],
@@ -642,125 +489,14 @@ async function tryCascade(
     userId: string,
     selectedModel: string
 ): Promise<{ ok: boolean; backend?: string; label?: string; latencyMs?: number; tokensOut?: number }> {
-    // Round-robin key rotation per request — spreads load so key 1 isn't
-    // always hit first. Different requests start from different offsets,
-    // giving every key in each pool roughly equal usage over time.
-    const rotationSeed = Date.now()
-
-    for (const step of cascade) {
-        const endpoint = providerEndpoint(step.provider)
-        const allKeys = providerKeys(step.provider)
-        if (!endpoint || !allKeys.length) continue
-        const offset = rotationSeed % allKeys.length
-        const keys = [...allKeys.slice(offset), ...allKeys.slice(0, offset)]
-
-        let keyIdx = 0
-        for (const key of keys) {
-            keyIdx++
-            const startedAt = Date.now()
-            try {
-                const headers: any = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` }
-                if (step.provider === 'openrouter' || step.provider === 'openrouter-free') {
-                    headers['HTTP-Referer'] = 'https://ai.example.com'
-                    headers['X-Title'] = 'Cascade AI'
-                }
-                const res = await fetch(endpoint, {
-                    method: 'POST',
-                    headers,
-                    body: JSON.stringify({ model: step.model, messages, temperature: 0.7, max_tokens: maxTokens, top_p: 0.9, stream: true }),
-                })
-                if (res.status === 429) {
-                    logEvent({ user_id: userId, event_type: 'rate_limit', model_id: selectedModel, backend: step.label, key_index: keyIdx, status: '429' })
-                    continue
-                }
-                if (!res.ok) {
-                    logEvent({ user_id: userId, event_type: 'error', model_id: selectedModel, backend: step.label, key_index: keyIdx, status: String(res.status) })
-                    continue
-                }
-
-                const reader = res.body!.getReader()
-                const dec = new TextDecoder()
-                let buf = ''
-                let charCount = 0
-                let pendingText = ''
-                let inThinkBlock = false
-
-                const sendVisible = (text: string) => {
-                    const clean = redactProviderNames(text)
-                    if (!clean) return
-                    charCount += clean.length
-                    controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'token', text: clean })}\n\n`))
-                }
-                const sendThinking = (text: string) => {
-                    const clean = redactThinkingMeta(redactProviderNames(text))
-                    if (!clean) return
-                    controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'thinking', text: clean })}\n\n`))
-                }
-                const flushVisibleText = (text: string) => {
-                    pendingText += text
-                    while (pendingText.length > 0) {
-                        if (inThinkBlock) {
-                            const closeIdx = pendingText.indexOf('</think>')
-                            if (closeIdx === -1) { if (pendingText) sendThinking(pendingText); pendingText = ''; return }
-                            const thinkPart = pendingText.slice(0, closeIdx)
-                            if (thinkPart) sendThinking(thinkPart)
-                            pendingText = pendingText.slice(closeIdx + '</think>'.length)
-                            inThinkBlock = false
-                        } else {
-                            const openIdx = pendingText.indexOf('<think>')
-                            if (openIdx === -1) {
-                                if (pendingText.length > 7) {
-                                    const safe = pendingText.slice(0, pendingText.length - 7)
-                                    const tail = pendingText.slice(pendingText.length - 7)
-                                    if (safe) sendVisible(safe); pendingText = tail
-                                }
-                                return
-                            }
-                            const visible = pendingText.slice(0, openIdx)
-                            if (visible) sendVisible(visible)
-                            pendingText = pendingText.slice(openIdx + '<think>'.length)
-                            inThinkBlock = true
-                        }
-                    }
-                }
-
-                while (true) {
-                    const { done, value } = await reader.read()
-                    if (done) break
-                    buf += dec.decode(value, { stream: true })
-                    const lines = buf.split('\n')
-                    buf = lines.pop() ?? ''
-                    for (const line of lines) {
-                        if (!line.startsWith('data: ') || line.includes('[DONE]')) continue
-                        try {
-                            const data = JSON.parse(line.slice(6))
-                            const token = data.choices?.[0]?.delta?.content || ''
-                            const reasoning = data.choices?.[0]?.delta?.reasoning || ''
-                            if (reasoning) sendThinking(reasoning)
-                            if (token) flushVisibleText(token)
-                        } catch { /* skip malformed SSE line */ }
-                    }
-                }
-                if (inThinkBlock && pendingText.length > 0) { sendThinking(pendingText); pendingText = '' }
-                else if (pendingText.length > 0) { sendVisible(pendingText); pendingText = '' }
-
-                if (charCount === 0) {
-                    logEvent({ user_id: userId, event_type: 'error', model_id: selectedModel, backend: step.label, key_index: keyIdx, status: 'empty_stream' })
-                    continue
-                }
-                const latency = Date.now() - startedAt
-                controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'backend', label: step.label })}\n\n`))
-                return { ok: true, backend: step.model, label: step.label, latencyMs: latency, tokensOut: Math.ceil(charCount / 4) }
-            } catch (e: any) {
-                logEvent({ user_id: userId, event_type: 'error', model_id: selectedModel, backend: step.label, key_index: keyIdx, status: 'exception', meta: { msg: e?.message?.slice(0, 200) } })
-                continue
-            }
-        }
-    }
-    return { ok: false }
+    return tryCascadeModule({
+        cascade: cascade as CascadeStep[],
+        messages, maxTokens, encoder, controller, userId, selectedModel,
+        logEvent: (e) => { logEvent(e as any).catch(() => { }) },
+    })
 }
 
-// ── Backwards compat — old streamCascade name still used by other paths ─────
+/** Smart-mode fallback retained for Live-mode search composition. */
 async function streamCascade(
     messages: any[],
     maxTokens: number,
@@ -770,6 +506,14 @@ async function streamCascade(
     const result = await streamFromGroqModels(MODELS_CASCADE, messages, maxTokens, encoder, controller, '', 'smart')
     return result.ok
 }
+
+// ── DEAD CODE REMOVED — tryCascade and streamFromGroqModels were ~250 lines ──
+// of inline SSE streaming, <think>-block parsing, and key rotation. All of
+// that logic now lives in lib/providers/cascade.ts where it is unit-tested.
+// Kept inline: small shims above so the rest of the route can continue to use
+// these names while the big migration happens step by step.
+
+// Legacy inline implementation removed — was here:
 
 // ── Gemini grounded streaming — Live mode ─────────────────────────────────────
 // Calls Gemini 2.5 Flash with Google Search grounding tool enabled.
@@ -917,7 +661,7 @@ async function streamFromGeminiGrounded(
 // ── Full (non-streaming) Groq call — for re-asking after search ───────────────
 async function askGroqFull(messages: any[], maxTokens = 2000): Promise<string> {
     for (const model of MODELS_CASCADE) {
-        for (const key of GROQ_KEYS) {
+        for (const key of env().providers.groq) {
             try {
                 const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
                     method: 'POST',
@@ -938,7 +682,7 @@ async function askGroqFull(messages: any[], maxTokens = 2000): Promise<string> {
 // ── OpenRouter fallback (non-streaming, last resort) ──────────────────────────
 async function askOpenRouter(messages: any[]): Promise<string> {
     const models = ['openai/gpt-oss-120b:free', 'nvidia/nemotron-3-super-120b-a12b:free']
-    for (const key of OR_KEYS) {
+    for (const key of env().providers.openrouter) {
         for (const model of models) {
             try {
                 const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
@@ -1143,13 +887,13 @@ If you find yourself writing fewer than ${fileCount} rows/entries, STOP and re-r
         })()
         const cutoffContext = `\n\n**CURRENT_MODEL:** ${friendlyBackend}\n**MODEL_CUTOFF:** ${selectedModel.cutoffDate}\nIf asked about your model or training, you may mention CURRENT_MODEL by name. For knowledge cutoff use the exact MODEL_CUTOFF value above — never guess.`
 
-        // Fetch persistent memory for this user (ChatGPT-style memory across all chats)
+        // Fetch persistent memory for this user (ChatGPT-style memory across all chats).
+        // Facts are wrapped with explicit boundary markers (lib/prompts/sanitize.ts)
+        // so the model treats them as data, not instructions — injection defence.
         let memoryContext = ''
         try {
             const memories = await getUserMemories(user.id)
-            if (memories.length > 0) {
-                memoryContext = `\n\n**MEMORY (persistent facts you know about this user from past conversations):**\n${memories.map((f, i) => `${i + 1}. ${f}`).join('\n')}\nUse these facts naturally — don't list them back unless asked. If a fact is relevant, weave it in.`
-            }
+            memoryContext = wrapMemories(memories)
         } catch { /* memory fetch failed — continue without it */ }
 
         let systemContent = customInstructions?.trim()
@@ -1172,46 +916,18 @@ If you find yourself writing fewer than ${fileCount} rows/entries, STOP and re-r
             { role: 'user', content: userContent },
         ]
 
-        // ── Live data tools — inject real-time data into context ──────────
-        // These fire BEFORE the model cascade so the AI can format the data naturally.
-        const lowerMsg = (message ?? '').toLowerCase()
-        let toolData = ''
-        try {
-            // Exchange rates
-            if (/\b(exchange rate|currency|convert|gbp to|usd to|eur to|how much is .+ in|£.+to|\bfx\b|forex)\b/i.test(lowerMsg)) {
-                // Check for specific conversion: "convert 500 GBP to EUR"
-                const convMatch = lowerMsg.match(/(?:convert\s+)?(\d[\d,.]*)\s*([a-z]{3})\s+(?:to|in|into)\s+([a-z]{3})/i)
-                if (convMatch) {
-                    toolData += '\n\n' + await convertCurrency(parseFloat(convMatch[1].replace(/,/g, '')), convMatch[2], convMatch[3])
-                } else {
-                    toolData += '\n\n' + await getExchangeRates()
-                }
-            }
-            // Weather
-            if (/\b(weather|temperature|forecast|rain|sunny|cloudy|wind|humidity|umbrella|cold|hot|warm)\b/i.test(lowerMsg)) {
-                // Extract location — "weather in London" or "London weather" or just "weather" (default London)
-                const locMatch = lowerMsg.match(/weather\s+(?:in|for|at)\s+([a-z\s]+?)(?:\?|$|today|tomorrow|now)/i)
-                    ?? lowerMsg.match(/([a-z\s]+?)\s+weather/i)
-                const location = locMatch?.[1]?.trim() || 'London'
-                toolData += '\n\n' + await getWeather(location)
-            }
-            // Container tracking — only trigger if a real container number is present
-            // Container numbers: 4 letters (usually ending U) + 7 digits, e.g. MSCU1234567, TGBU6512798
-            {
-                const containerMatch = (message ?? '').match(/\b([A-Z]{3}U\d{7})\b/i)
-                    ?? (message ?? '').match(/\b([A-Z]{4}\d{7})\b/i)
-                if (containerMatch) {
-                    toolData += '\n\n' + await getTrackingLinks(containerMatch[1] ?? containerMatch[0])
-                }
-            }
-        } catch { /* tool errors shouldn't block the chat */ }
+        // ── Live data tools — injected BEFORE the cascade ─────────────────
+        // The tool registry (lib/tools/registry.ts) knows which tools to fire
+        // for this message. Each tool's output is already wrapped with
+        // structured boundary markers to defend against prompt injection.
+        const toolResults = await runTools(message ?? '')
+        const toolData = formatToolResults(toolResults)
 
-        // If tools returned data, inject it into the user message so the model can format it
         if (toolData) {
             const lastIdx = messages.length - 1
             messages[lastIdx] = {
                 role: 'user',
-                content: `${messages[lastIdx].content}\n\n**[Live data retrieved — use this to answer the question:]**${toolData}`
+                content: `${messages[lastIdx].content}${toolData}\n\n[End of live data — use the above to answer the user's question accurately.]`
             }
         }
 
@@ -1263,7 +979,7 @@ If you find yourself writing fewer than ${fileCount} rows/entries, STOP and re-r
                     }
                     else if (wantsSearch) {
                         // Search → re-ask with results
-                        const results = await webSearch(message)
+                        const results = await runWebSearch(message)
                         const searchMessages = [
                             ...messages,
                             { role: 'assistant', content: 'I searched the web for that.' },
@@ -1276,7 +992,7 @@ If you find yourself writing fewer than ${fileCount} rows/entries, STOP and re-r
                         // Vision — use vision model directly (no streaming)
                         let reply = ''
                         let keyIdx = 0
-                        for (const key of GROQ_KEYS) {
+                        for (const key of env().providers.groq) {
                             keyIdx++
                             try {
                                 const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
@@ -1315,7 +1031,7 @@ If you find yourself writing fewer than ${fileCount} rows/entries, STOP and re-r
                         } else {
                             // Live mode failed — rescue with Tavily + Kimi
                             logEvent({ user_id: user.id, event_type: 'fallback', model_id: 'live', status: 'gemini_failed' })
-                            const results = await webSearch(message)
+                            const results = await runWebSearch(message)
                             const searchMessages = [
                                 ...messages,
                                 { role: 'assistant', content: 'I searched the web for that.' },
