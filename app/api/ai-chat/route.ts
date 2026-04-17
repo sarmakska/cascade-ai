@@ -4,7 +4,7 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { supabaseAdmin } from '@/lib/supabase/admin'
 import { MODELS, getModel, isValidModelId, autoRouteIntent, type ModelId } from '@/lib/ai-models'
-import { getUserMemories } from '@/lib/ai-sessions'
+import { getUserMemories } from '@/lib/repositories/memories'
 import { getExchangeRates, getWeather, getTrackingLinks, convertCurrency } from '@/lib/ai-tools'
 
 // ── Keys ──────────────────────────────────────────────────────────────────────
@@ -148,92 +148,6 @@ Today's context: You are assisting staff at Your Company, a UK fashion company.`
 interface ChatMessage {
     role: 'user' | 'assistant'
     content: string | Array<{ type: string; text?: string; image_url?: { url: string } }>
-}
-
-// ── Nexus data integration ────────────────────────────────────────────────────
-type NexusIntent = 'leave' | 'attendance' | 'office'
-
-function detectNexusIntent(msg: string): NexusIntent | null {
-    if (/\b(my leave|holiday|annual leave|days? off|time off|leave balance|days? remaining|how many days?|entitlement|carried over|sick leave|maternity|my (remaining|total|used) days?)\b/i.test(msg)) return 'leave'
-    if (/\b(clock.?in|clock.?out|my hours?|hours? (worked|this week|today)|my timesheet|my attendance|worked today|my shift|what time did i)\b/i.test(msg)) return 'attendance'
-    if (/\b(who[''s]? in|who is in|in the office|office today|staff.*today|working today|who.?s (working|wfh|on leave)|present today|working from home today)\b/i.test(msg)) return 'office'
-    return null
-}
-
-async function fetchNexusData(userId: string, intent: NexusIntent): Promise<string> {
-    try {
-        const today = new Date().toISOString().split('T')[0]
-        const year  = new Date().getFullYear()
-
-        if (intent === 'leave') {
-            const { data: balances } = await (supabaseAdmin as any)
-                .from('leave_balances')
-                .select('leave_type, total, used, pending')
-                .eq('user_id', userId)
-                .eq('year', year)
-            if (!balances?.length) return '[No leave balance data found]'
-            const lines = (balances as any[]).map((b: any) => {
-                const remaining = Math.max(0, Number(b.total) - Number(b.used) - Number(b.pending))
-                return `${b.leave_type}: ${remaining} days remaining (${b.used} used, ${b.pending} pending, ${b.total} total entitlement)`
-            })
-            return `Leave balances for ${year}:\n${lines.join('\n')}`
-        }
-
-        if (intent === 'attendance') {
-            const weekStart = new Date()
-            weekStart.setDate(weekStart.getDate() - ((weekStart.getDay() + 6) % 7)) // Monday
-            const weekStartStr = weekStart.toISOString().split('T')[0]
-            const { data: records } = await (supabaseAdmin as any)
-                .from('attendance')
-                .select('work_date, clock_in, clock_out')
-                .eq('user_id', userId)
-                .gte('work_date', weekStartStr)
-                .order('work_date', { ascending: false })
-            if (!records?.length) return '[No attendance records found this week]'
-            let totalMins = 0
-            const lines = (records as any[]).map((r: any) => {
-                let hrs = ''
-                if (r.clock_in && r.clock_out) {
-                    const mins = Math.round((new Date(r.clock_out).getTime() - new Date(r.clock_in).getTime()) / 60000)
-                    totalMins += mins
-                    hrs = ` — ${Math.floor(mins/60)}h ${mins%60}m`
-                } else if (r.clock_in) {
-                    hrs = ' — still clocked in'
-                }
-                const ci = r.clock_in ? new Date(r.clock_in).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : 'not recorded'
-                const co = r.clock_out ? ', out ' + new Date(r.clock_out).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : ''
-                return `${r.work_date}: in ${ci}${co}${hrs}`
-            })
-            return `Your attendance this week:\n${lines.join('\n')}\nTotal hours so far: ${Math.floor(totalMins/60)}h ${totalMins%60}m`
-        }
-
-        if (intent === 'office') {
-            const [{ data: attendance }, { data: profiles }] = await Promise.all([
-                (supabaseAdmin as any).from('attendance').select('user_id, clock_in, clock_out, status').eq('work_date', today),
-                (supabaseAdmin as any).from('user_profiles').select('id, full_name').eq('is_active', true),
-            ])
-            const attMap = new Map((attendance ?? []).map((a: any) => [a.user_id, a]))
-            const inOffice: string[] = [], wfh: string[] = [], onLeave: string[] = [], absent: string[] = []
-            for (const p of profiles ?? []) {
-                const rec: any = attMap.get(p.id)
-                if (!rec) { absent.push(p.full_name); continue }
-                if (rec.status === 'wfh') { wfh.push(p.full_name); continue }
-                if (rec.status === 'leave') { onLeave.push(p.full_name); continue }
-                if (rec.clock_in && !rec.clock_out) { inOffice.push(p.full_name); continue }
-                if (rec.clock_in && rec.clock_out) { absent.push(p.full_name + ' (clocked out)'); continue }
-                absent.push(p.full_name)
-            }
-            const parts = [`Office status for today (${today}):`]
-            if (inOffice.length)  parts.push(`In office: ${inOffice.join(', ')}`)
-            if (wfh.length)       parts.push(`Working from home: ${wfh.join(', ')}`)
-            if (onLeave.length)   parts.push(`On leave: ${onLeave.join(', ')}`)
-            if (absent.length)    parts.push(`Not in / absent: ${absent.join(', ')}`)
-            return parts.join('\n')
-        }
-    } catch (err: any) {
-        console.error('[Nexus data]', err.message)
-    }
-    return ''
 }
 
 // ── Intent detection (from user message, not AI response) ─────────────────────
@@ -1188,15 +1102,6 @@ export async function POST(request: Request) {
                 : `${allFiles.length} attached files`
         }
 
-        // Nexus data injection (only for plain-text messages, not file uploads)
-        let nexusContext = ''
-        if (!fileContext && !image && message?.trim()) {
-            const nexusIntent = detectNexusIntent(message)
-            if (nexusIntent) {
-                nexusContext = await fetchNexusData(user.id, nexusIntent)
-            }
-        }
-
         let fullMessage = message || ''
         if (fileContext) {
             const fileCount = allFiles.length
@@ -1213,10 +1118,6 @@ If you find yourself writing fewer than ${fileCount} rows/entries, STOP and re-r
                 : `[${fileLabel} content below]`
             fullMessage = `${instruction}\n\n${fileContext}\n\n[User's question]: ${message || `Please analyse all ${fileCount > 1 ? fileCount + ' attached files' : 'this ' + fileLabel}.`}`
         }
-        if (nexusContext) {
-            fullMessage = `[Real-time data from Nexus — use this to answer the question accurately]\n${nexusContext}\n\n[User's question]: ${fullMessage || message}`
-        }
-
         // Build message array — last 20 messages for context
         const userContent: any = image
             ? [{ type: 'text', text: fullMessage || 'What is this?' }, { type: 'image_url', image_url: { url: image } }]

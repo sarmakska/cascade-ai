@@ -32,7 +32,7 @@ async function editViaFluxKlein(
 ): Promise<EditResult> {
     const fd = new FormData()
     fd.append('prompt', prompt)
-    fd.append('image', new Blob([imageBytes], { type: mime || 'image/png' }), 'source.png')
+    fd.append('image', new Blob([new Uint8Array(imageBytes)], { type: mime || 'image/png' }), 'source.png')
     const res = await fetch(
         `https://api.cloudflare.com/client/v4/accounts/${pair.accountId}/ai/run/${model}`,
         { method: 'POST', headers: { Authorization: `Bearer ${pair.token}` }, body: fd as any },
