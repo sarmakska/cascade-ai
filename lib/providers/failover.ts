@@ -16,6 +16,7 @@
  */
 
 import { providerEndpoint, providerKeys, providerHeaders } from './registry'
+import { sanitizeStreamChunk } from '@/lib/prompts/sanitize'
 import type { FailoverStep } from '@/lib/ai-models'
 
 export interface FailoverResult {
@@ -142,11 +143,15 @@ async function streamResponseToController(
     let inThinkBlock = false
 
     const sendVisible = (text: string) => {
-        charCount += text.length
-        controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'token', text })}\n\n`))
+        const clean = sanitizeStreamChunk(text)
+        if (clean === null || clean.length === 0) return
+        charCount += clean.length
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'token', text: clean })}\n\n`))
     }
     const sendThinking = (text: string) => {
-        controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'thinking', text })}\n\n`))
+        const clean = sanitizeStreamChunk(text)
+        if (clean === null || clean.length === 0) return
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'thinking', text: clean })}\n\n`))
     }
 
     const flushVisibleText = (text: string) => {

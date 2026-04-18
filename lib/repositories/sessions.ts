@@ -7,6 +7,7 @@
  */
 
 import { supabaseAdmin } from '@/lib/supabase/admin'
+import { stripInvisibleChars } from '@/lib/prompts/sanitize'
 import type { AiChatSession, SessionListItem, ChatMessageRow } from '@/lib/types/database'
 
 type SessionsTable = {
@@ -72,6 +73,18 @@ export async function createSession(userId: string): Promise<string | null> {
     return (data as { id: string }).id
 }
 
+/**
+ * Strip invisible / bidi unicode from assistant message content before
+ * persisting. Prevents hidden-instruction smuggling from surviving into
+ * future sessions via chat history or memory extraction.
+ */
+function sanitizeForStorage(messages: ChatMessageRow[]): ChatMessageRow[] {
+    return messages.map(m => {
+        if (m.role !== 'assistant' || typeof m.content !== 'string') return m
+        return { ...m, content: stripInvisibleChars(m.content) }
+    })
+}
+
 export async function updateSessionMessages(
     sessionId: string,
     userId: string,
@@ -80,7 +93,7 @@ export async function updateSessionMessages(
 ): Promise<void> {
     await db()
         .from('ai_chat_sessions')
-        .update({ messages, title, updated_at: new Date().toISOString() })
+        .update({ messages: sanitizeForStorage(messages), title, updated_at: new Date().toISOString() })
         .eq('id', sessionId)
         .eq('user_id', userId)
 }

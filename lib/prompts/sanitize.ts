@@ -97,3 +97,47 @@ export function wrapMemories(facts: string[]): string {
 export function wrapToolResult(toolName: string, result: string): string {
     return `\n\n[TOOL RESULT — ${toolName}]\n${result.trim()}\n[END TOOL RESULT]`
 }
+
+/**
+ * Strip invisible / bidirectional Unicode characters from model output.
+ *
+ * These are the characters used to smuggle hidden instructions into
+ * rendered text without the user seeing them:
+ *   U+200B..U+200F — zero-width space / joiner / non-joiner / LRM / RLM
+ *   U+202A..U+202E — bidi override (LRE, RLE, PDF, LRO, RLO)
+ *   U+2066..U+2069 — bidi isolate (LRI, RLI, FSI, PDI)
+ *   U+FEFF        — zero-width no-break space / BOM
+ *   U+180E        — Mongolian vowel separator
+ *   U+00AD        — soft hyphen (can hide word-boundary attacks)
+ *
+ * Runs on every streamed chunk and every assistant message before it is
+ * persisted to ai_chat_sessions, so an injection string cannot survive
+ * into a future session via memory extraction or chat history.
+ */
+// eslint-disable-next-line no-misleading-character-class
+const INVISIBLE_CHAR_RE = /[\u00AD\u180E\u200B-\u200F\u202A-\u202E\u2066-\u2069\uFEFF]/g
+
+export function stripInvisibleChars(text: string): string {
+    if (!text) return text
+    return text.replace(INVISIBLE_CHAR_RE, '')
+}
+
+/**
+ * Validate + sanitise one SSE chunk before enqueueing to the client
+ * stream. Returns the cleaned text, or `null` if the chunk fails the
+ * schema check and should be dropped.
+ *
+ * Checks:
+ *   1. Must be a string
+ *   2. Length capped (defence against oversized payloads from a
+ *      malformed or malicious provider stream)
+ *   3. Invisible characters stripped
+ */
+const MAX_CHUNK_CHARS = 32_000  // ~8K tokens, far above any single SSE chunk
+
+export function sanitizeStreamChunk(text: unknown): string | null {
+    if (typeof text !== 'string') return null
+    if (text.length === 0) return ''
+    if (text.length > MAX_CHUNK_CHARS) return null
+    return stripInvisibleChars(text)
+}
