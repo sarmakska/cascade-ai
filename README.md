@@ -86,6 +86,25 @@ Extract memories in background (Groq Llama 8B)
 
 ---
 
+## AI-Powered Setup (Recommended)
+
+**Don't want to read docs? Let AI set it up for you.**
+
+SarmaLink-AI ships with a built-in setup skill. Open the repo in any AI coding tool, paste one prompt, and the AI walks you through everything — Supabase, API keys, deployment. Zero terminal knowledge needed.
+
+| Tool | How to start |
+|---|---|
+| **Claude Code** | Open repo in terminal → the skill loads automatically. Say "help me set up SarmaLink-AI" |
+| **Cursor** | Open repo → Cmd+K → paste the prompt from [`docs/SETUP-AI.md`](docs/SETUP-AI.md) |
+| **VS Code + Copilot** | Open repo → Copilot Chat → paste the prompt |
+| **ChatGPT / Gemini** | Paste the prompt from [`docs/SETUP-AI.md`](docs/SETUP-AI.md) |
+
+> **Total time: ~15 minutes. The AI handles dependencies, environment configuration, database migration, key validation, and optional Vercel deployment.**
+
+If you prefer manual setup, follow the steps below.
+
+---
+
 ## Quick Start — Minimum Setup (3 env vars, ~10 min)
 
 You only need **Supabase** (database + auth) and **Groq** (chat inference) to get a working assistant. Everything else is optional.

@@ -44,6 +44,7 @@ export function providerKeys(provider: ProviderType): string[] {
         case 'groq': return e.providers.groq
         case 'cerebras': return e.providers.cerebras
         case 'sambanova': return e.providers.sambanova
+        case 'gemini-grounded': return e.providers.gemini
         case 'openrouter':
         case 'openrouter-free': return e.providers.openrouter
         default: return []

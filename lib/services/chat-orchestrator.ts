@@ -11,7 +11,8 @@
  * Returns a ReadableStream of SSE events.
  */
 
-import { getModel, type ModelId } from '@/lib/ai-models'
+import { getModel, MODELS, type ModelId } from '@/lib/ai-models'
+import { providerAvailable } from '@/lib/providers/registry'
 import { getUserMemories } from '@/lib/repositories/memories'
 import { wrapMemories } from '@/lib/prompts/sanitize'
 import { runTools, formatToolResults } from '@/lib/tools/run'
@@ -188,6 +189,41 @@ export async function orchestrateChat(
         hasFiles,
     })
     const selectedModel = getModel(selectedModelId)
+
+    // ── Provider availability check ───────────────────────────────────
+    // If the selected mode requires providers that have zero keys configured,
+    // return a helpful error instead of silently failing downstream.
+    if (selectedModelId !== 'auto') {
+        const failoverProviders = new Set(selectedModel.failover.map(s => s.provider))
+        const hasAnyProvider = [...failoverProviders].some(p => providerAvailable(p))
+        if (!hasAnyProvider) {
+            const primaryProvider = selectedModel.failover[0]?.provider ?? 'unknown'
+            const providerDisplayNames: Record<string, string> = {
+                'groq': 'Groq',
+                'sambanova': 'SambaNova',
+                'cerebras': 'Cerebras',
+                'gemini-grounded': 'Google Gemini',
+                'openrouter': 'OpenRouter',
+                'openrouter-free': 'OpenRouter',
+            }
+            const providerEnvVars: Record<string, string> = {
+                'groq': 'GROQ_API_KEY',
+                'sambanova': 'SAMBANOVA_API_KEY',
+                'cerebras': 'CEREBRAS_API_KEY',
+                'gemini-grounded': 'GOOGLE_GEMINI_API_KEY',
+                'openrouter': 'OPENROUTER_API_KEY',
+                'openrouter-free': 'OPENROUTER_API_KEY',
+            }
+            const displayName = providerDisplayNames[primaryProvider] ?? primaryProvider
+            const envVar = providerEnvVars[primaryProvider] ?? `${primaryProvider.toUpperCase()}_API_KEY`
+            return Response.json({
+                error: 'provider_not_configured',
+                reply: `${selectedModel.name} mode requires a ${displayName} API key. Add ${envVar} to your environment variables to enable this mode.`,
+                mode: selectedModelId,
+                requiredProvider: primaryProvider.replace('-grounded', ''),
+            })
+        }
+    }
 
     // ── Quota check ─────────────────────────────────────────────────────
     const quota = await checkQuota(userId, selectedModelId, selectedModel)
