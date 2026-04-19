@@ -9,33 +9,20 @@
 
 import { supabaseAdmin } from '@/lib/supabase/admin'
 
-function db() {
-    return supabaseAdmin as unknown as {
-        from: (table: 'ai_user_memories') => {
-            select: (cols: string) => {
-                eq: (col: string, val: string) => {
-                    maybeSingle: () => Promise<{ data: { facts: string[] } | null }>
-                }
-            }
-            upsert: (row: { user_id: string; facts: string[]; updated_at: string }, opts: { onConflict: string }) => Promise<unknown>
-        }
-    }
-}
-
 const MAX_MEMORIES = 30
 
 export async function getUserMemories(userId: string): Promise<string[]> {
-    const { data } = await db()
+    const { data } = await supabaseAdmin
         .from('ai_user_memories')
         .select('facts')
         .eq('user_id', userId)
         .maybeSingle()
-    return data?.facts ?? []
+    return (data as { facts: string[] } | null)?.facts ?? []
 }
 
 export async function saveUserMemories(userId: string, facts: string[]): Promise<void> {
     const trimmed = facts.slice(-MAX_MEMORIES)
-    await db()
+    await supabaseAdmin
         .from('ai_user_memories')
         .upsert(
             { user_id: userId, facts: trimmed, updated_at: new Date().toISOString() },

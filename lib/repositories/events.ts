@@ -20,19 +20,11 @@ export interface EventLogInput {
     meta?: Record<string, unknown> | null
 }
 
-function db() {
-    return supabaseAdmin as unknown as {
-        from: (table: 'ai_events') => {
-            insert: (row: EventLogInput) => Promise<unknown>
-        }
-    }
-}
-
 /**
  * Fire-and-forget event logging. Never blocks the request.
  * If logging fails, we swallow the error — the user's request must not fail
  * because of a logging problem.
  */
 export function logEvent(event: EventLogInput): void {
-    db().from('ai_events').insert(event).then(() => { }, () => { })
+    supabaseAdmin.from('ai_events').insert(event).then(() => { }, () => { })
 }

@@ -3,7 +3,7 @@ export const maxDuration = 60
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { supabaseAdmin } from '@/lib/supabase/admin'
+import { logEvent } from '@/lib/repositories/events'
 
 const CF_PAIRS: { accountId: string; token: string }[] = [
     { accountId: process.env.CLOUDFLARE_ACCOUNT_ID ?? '', token: process.env.CLOUDFLARE_API_TOKEN ?? '' },
@@ -35,10 +35,10 @@ async function editViaFluxKlein(
     fd.append('image', new Blob([new Uint8Array(imageBytes)], { type: mime || 'image/png' }), 'source.png')
     const res = await fetch(
         `https://api.cloudflare.com/client/v4/accounts/${pair.accountId}/ai/run/${model}`,
-        { method: 'POST', headers: { Authorization: `Bearer ${pair.token}` }, body: fd as any },
+        { method: 'POST', headers: { Authorization: `Bearer ${pair.token}` }, body: fd },
     )
     if (!res.ok) return { ok: false, error: `cf_${res.status}` }
-    const data = await res.json().catch(() => null) as any
+    const data = await res.json().catch(() => null) as { result?: { image?: string } } | null
     const b64 = data?.result?.image
     if (typeof b64 !== 'string' || b64.length < 200) return { ok: false, error: 'no_image_in_response' }
     return {
@@ -80,7 +80,7 @@ async function editViaSD15(
             model: '@cf/runwayml/stable-diffusion-v1-5-img2img',
         }
     }
-    const data = await res.json().catch(() => null) as any
+    const data = await res.json().catch(() => null) as { result?: { image?: string } } | null
     const b64 = data?.result?.image
     if (typeof b64 === 'string') {
         return {
@@ -134,25 +134,25 @@ export async function POST(req: NextRequest) {
         }
 
         if (!success) {
-            ;(supabaseAdmin as any).from('ai_events').insert({
+            logEvent({
                 user_id: user.id,
                 event_type: 'error',
                 model_id: 'image-edit',
                 backend: 'flux-2-klein-failover',
                 status: 'failed',
                 meta: { error: lastError.slice(0, 200) },
-            }).then(() => { }, () => { })
+            })
             return NextResponse.json({ error: 'Image edit failed. ' + lastError }, { status: 502 })
         }
 
-        ;(supabaseAdmin as any).from('ai_events').insert({
+        logEvent({
             user_id: user.id,
             event_type: 'message',
             model_id: 'image-edit',
             backend: success.model,
             status: 'success',
             meta: { prompt: cleanPrompt.slice(0, 200), strength: s },
-        }).then(() => { }, () => { })
+        })
 
         return NextResponse.json({
             image: { dataUrl: success.dataUrl, mimeType: 'image/png', source: success.source },

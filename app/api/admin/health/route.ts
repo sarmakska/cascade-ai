@@ -52,14 +52,8 @@ export async function GET() {
 
     const since = new Date(Date.now() - 24 * 3600 * 1000).toISOString()
 
-    // Pull last 24h of events (cast as any — ai_events isn't in the generated types)
-    const { data: rawEvents } = await (supabaseAdmin as unknown as {
-        from: (t: string) => {
-            select: (c: string) => {
-                gte: (col: string, v: string) => Promise<{ data: Array<{ backend: string | null; event_type: string; latency_ms: number | null }> | null }>
-            }
-        }
-    })
+    // Pull last 24h of events
+    const { data: rawEvents } = await supabaseAdmin
         .from('ai_events')
         .select('backend, event_type, latency_ms')
         .gte('created_at', since)

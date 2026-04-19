@@ -57,15 +57,16 @@ export async function uploadToR2(opts: {
 // Fetch a file from R2 as raw bytes.
 export async function getFromR2(key: string): Promise<Buffer> {
     const res = await r2Client().send(new GetObjectCommand({ Bucket: BUCKET, Key: key }))
-    const body = res.Body as any
-    // AWS SDK v3 returns a stream — convert to Buffer
-    if (typeof body.transformToByteArray === 'function') {
+    const body = res.Body
+    if (!body) throw new Error('Empty response body from R2')
+    // AWS SDK v3 SdkStreamMixin provides transformToByteArray
+    if ('transformToByteArray' in body && typeof body.transformToByteArray === 'function') {
         const arr = await body.transformToByteArray()
         return Buffer.from(arr)
     }
-    // Fallback for older environments
+    // Fallback for older environments — treat as async iterable
     const chunks: Buffer[] = []
-    for await (const chunk of body) chunks.push(Buffer.from(chunk))
+    for await (const chunk of body as AsyncIterable<Uint8Array>) chunks.push(Buffer.from(chunk))
     return Buffer.concat(chunks)
 }
 

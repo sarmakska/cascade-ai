@@ -3,7 +3,7 @@ export const maxDuration = 60
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { supabaseAdmin } from '@/lib/supabase/admin'
+import { logEvent } from '@/lib/repositories/events'
 
 // Image generation is 100% free — OpenRouter $5 image credit was refunded on
 // 2026-04-16. FLUX.2 klein (9B/4B) is the new flagship — sharper, better
@@ -28,10 +28,10 @@ async function generateViaFluxKlein(
         fd.append('prompt', prompt)
         const res = await fetch(
             `https://api.cloudflare.com/client/v4/accounts/${pair.accountId}/ai/run/${model}`,
-            { method: 'POST', headers: { Authorization: `Bearer ${pair.token}` }, body: fd as any },
+            { method: 'POST', headers: { Authorization: `Bearer ${pair.token}` }, body: fd },
         )
         if (!res.ok) return null
-        const data = await res.json().catch(() => null) as any
+        const data = await res.json().catch(() => null) as { result?: { image?: string } } | null
         const b64 = data?.result?.image
         if (typeof b64 !== 'string' || b64.length < 200) return null
         return {
@@ -57,7 +57,7 @@ async function generateViaFluxSchnell(
             },
         )
         if (!res.ok) return null
-        const data = await res.json().catch(() => null) as any
+        const data = await res.json().catch(() => null) as { result?: { image?: string } } | null
         const b64 = data?.result?.image
         if (typeof b64 !== 'string' || b64.length < 100) return null
         return {
@@ -136,28 +136,28 @@ export async function POST(req: NextRequest) {
         const images: ImgOut[] = results.filter((r): r is ImgOut => r !== null)
 
         if (!images.length) {
-            ;(supabaseAdmin as any).from('ai_events').insert({
+            logEvent({
                 user_id: user.id,
                 event_type: 'error',
                 model_id: 'image-generate',
                 backend: 'cloudflare',
                 status: 'failed',
                 meta: { prompt: trimmedPrompt.slice(0, 200) },
-            }).then(() => { }, () => { })
+            })
 
             return NextResponse.json({
                 error: 'All free image engines are busy right now — try again in a minute.',
             }, { status: 502 })
         }
 
-        ;(supabaseAdmin as any).from('ai_events').insert({
+        logEvent({
             user_id: user.id,
             event_type: 'message',
             model_id: 'image-generate',
             backend: modelUsed || 'cloudflare-flux-free',
             status: 'success',
             meta: { prompt: trimmedPrompt.slice(0, 200), count: images.length },
-        }).then(() => { }, () => { })
+        })
 
         return NextResponse.json({ images, prompt: trimmedPrompt, model: modelUsed })
     } catch (err: any) {

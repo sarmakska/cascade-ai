@@ -14,7 +14,7 @@ export async function GET() {
     const today = new Date().toISOString().split('T')[0]
 
     // 1) Pull this user's per-model usage today
-    const { data: userRows } = await (supabaseAdmin as any)
+    const { data: userRows } = await supabaseAdmin
       .from('ai_chat_usage')
       .select('model_id, count')
       .eq('user_id', user.id)
@@ -26,7 +26,7 @@ export async function GET() {
     }
 
     // 2) Pull company-wide per-model totals today (from the view)
-    const { data: companyRows } = await (supabaseAdmin as any)
+    const { data: companyRows } = await supabaseAdmin
       .from('ai_usage_today')
       .select('model_id, total_messages, active_users')
 
