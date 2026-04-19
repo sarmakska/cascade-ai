@@ -3,7 +3,8 @@ export const dynamic = 'force-dynamic'
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { supabaseAdmin } from '@/lib/supabase/admin'
-import { MODELS, getModel, isValidModelId, autoRouteIntent, type ModelId } from '@/lib/ai-models'
+import { MODELS, getModel, isValidModelId, type ModelId } from '@/lib/ai-models'
+import { autoRouteIntent, detectImageIntent, detectSearchIntent, isClearImagePrompt } from '@/lib/router'
 import { getUserMemories } from '@/lib/repositories/memories'
 import { env } from '@/lib/env/validate'
 import { providerEndpoint, providerKeys, providerHeaders } from '@/lib/providers/registry'
@@ -103,31 +104,8 @@ interface ChatMessage {
     content: string | Array<{ type: string; text?: string; image_url?: { url: string } }>
 }
 
-// ── Intent detection (from user message, not AI response) ─────────────────────
-function detectImageIntent(msg: string): boolean {
-    return /\b(generate|create|draw|make|design|produce)\s+(?:\w+\s+){0,3}(image|picture|photo|illustration|artwork|painting|drawing|logo|icon|portrait|scene)\b/i.test(msg)
-        || /\b(image of|picture of|photo of|draw me|visualize|show me what .+ looks? like)\b/i.test(msg)
-}
-
-function detectSearchIntent(msg: string): boolean {
-    // Explicit search triggers — user asks for live info
-    const explicit = /\b(search|look ?up|find out|latest news|current|today['s]?|right now|what['s]? happening|price of|weather|wether|wheather|temperature|tempreture|temp outside|outside|score of|recent|2025|2026|2027|this week|this month|this year|going on|news about|update on|status of|latest on|is it raining|is it snowing|is it sunny|rain today|rain now|sunny today)\b/i
-    if (explicit.test(msg)) return true
-
-    // Time-sensitive event topics — wars, politics, markets, crises
-    const timeSensitive = /\b(war|conflict|crisis|ceasefire|invasion|election|vote|referendum|president|prime minister|chancellor|stock|market|shares|inflation|interest rate|exchange rate|protest|strike|ukraine|russia|israel|iran|gaza|houthi|yemen|lebanon|syria|opec|nato|eu|brexit|covid|pandemic|recession|tariff|sanctions)\b/i
-    if (timeSensitive.test(msg)) return true
-
-    // "What is the X" / "How is the X" / "Is there a" — looking for facts
-    const questionStart = /\b(what (is|are) the (current|latest|recent|today'?s?|new)|how is the (current|latest|weather|wether|wheather|temperature|weather outside)|is there (a|an|any) (current|new|recent)|has there been)\b/i
-    if (questionStart.test(msg)) return true
-
-    // "How's the weather [in X]" / "What's the temp" — common phrasings + typos
-    const weatherish = /\b(how('?s| is)? the (weather|wether|wheather|temp|temperature|forecast)|what('?s| is)? the (weather|wether|wheather|temp|temperature|forecast)|how('?s| is) it (outside|today))\b/i
-    if (weatherish.test(msg)) return true
-
-    return false
-}
+// Intent detection functions imported from @/lib/router:
+// detectImageIntent, detectSearchIntent, isClearImagePrompt
 
 // ── AI-based auto-router (replaces brittle regex) ────────────────────────────
 // Uses Cerebras Llama 3.1 8B (free, ~200ms) to classify the user's intent
@@ -238,20 +216,7 @@ function stripReasoningLeak(text: string): string {
     return clean.trim()
 }
 
-// Decide if the user's current message is itself a clear image-prompt, or
-// if it's a "do it"-style confirmation that needs context to build a prompt.
-function isClearImagePrompt(msg: string): boolean {
-    const trimmed = msg.trim()
-    if (!trimmed) return false
-    const words = trimmed.split(/\s+/).length
-    // Short confirmations like "yes", "do it", "create image", "go", etc.
-    const confirmations = /^(yes|yeah|ok|okay|go|do it|sure|please|create|generate|draw|make|make it|go ahead|image|picture|do this)\b[\s\S]*$/i
-    if (words <= 4 && confirmations.test(trimmed)) return false
-    if (words >= 6) return true
-    // Medium length: look for concrete visual nouns/adjectives
-    const visualMarkers = /\b(logo|dress|jumper|castle|landscape|portrait|photo|sketch|illustration|mockup|moodboard|pattern|print|flat|tile|background|scene|colou?r|style|painting|drawing|red|blue|green|yellow|burgundy|cream|black|white|vintage|modern|minimal|luxurious|editorial)\b/i
-    return visualMarkers.test(trimmed)
-}
+// isClearImagePrompt imported from @/lib/router
 
 // Build a proper image prompt. Prioritises the user's actual message.
 // Only distills from history when the message is a short confirmation AND

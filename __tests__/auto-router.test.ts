@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { autoRouteIntent } from '@/lib/ai-models'
+import { autoRouteIntent } from '@/lib/router'
 
 describe('autoRouteIntent', () => {
     describe('code detection', () => {

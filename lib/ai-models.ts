@@ -7,46 +7,8 @@
 export type ModelId = "auto" | "smart" | "reasoner" | "live" | "fast" | "vision" | "coder"
 
 // ── Auto-router: picks the best model per message based on intent ───────────
-// Simple regex-based classifier. Zero extra API calls, instant.
-// Runs server-side before the failover fires.
-export function autoRouteIntent(message: string): Exclude<ModelId, "auto"> {
-  const text = message.trim()
-  const lower = text.toLowerCase()
-  const wordCount = text.split(/\s+/).length
-
-  // Code: triple backticks, common programming keywords, file extensions
-  if (/```|\bfunction\s*\(|\bclass\s+\w|\bconst\s+\w|\blet\s+\w|\bimport\s+\w|\bdef\s+\w|<\w+\s*\/?>|SELECT\s.+FROM|\.(?:ts|tsx|jsx|js|py|rb|rs|go|java|cs|cpp|c|h|sql|sh|yaml|yml|json)\b/i.test(text)) {
-    return "coder"
-  }
-  if (/\b(fix|refactor|debug|write|generate).{0,40}\b(code|function|script|query|component|class|module|test|bug|error)\b/i.test(lower)) {
-    return "coder"
-  }
-
-  // Live: current events, news, prices, weather, tracking, FX, today/now/year refs
-  if (/\b(today|yesterday|right now|now|currently|latest|current|this (week|month|year)|breaking|news|weather|forecast|temperature|rain|sunny|stock price|exchange rate|currency|convert|gbp to|usd to|eur to|forex|score|who won|recent|just happened|2025|2026|2027|price of|cost of|rate of|how much is|how much does|minimum wage|interest rate|inflation|election|who is the|prime minister|president|container|tracking|shipment|cargo|where is my|track my)\b/i.test(lower)) {
-    return "live"
-  }
-
-  // Reasoner: explicit deep-thinking cues, complex math, logic puzzles
-  if (/\b(step[- ]?by[- ]?step|prove|proof|reason through|think carefully|analyse deeply|logic puzzle|solve this problem|show your (work|working)|derive|theorem)\b/i.test(lower)) {
-    return "reasoner"
-  }
-  // Long maths expressions, programming algorithm questions
-  if (/(\d+\s*[+\-*/^%]\s*){3,}|integral of|differentiate|big[- ]o\b|complexity of/i.test(text)) {
-    return "reasoner"
-  }
-
-  // Fast: short simple questions, one-liners
-  if (wordCount <= 6 && !/[?!.]/.test(text.slice(-1)) === false && !/\b(explain|analyse|compare|summarise|describe|write|draft)\b/i.test(lower)) {
-    return "fast"
-  }
-  if (/^(what's|whats|when|who|where) (is|are|was|were) \w+\??$/i.test(text) && wordCount < 8) {
-    return "fast"
-  }
-
-  // Default: Smart handles everything else
-  return "smart"
-}
+// Consolidated in lib/router/index.ts — re-exported here for backwards compat.
+export { autoRouteIntent } from '@/lib/router'
 
 export type ProviderType =
   | "groq"
