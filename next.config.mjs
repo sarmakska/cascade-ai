@@ -6,9 +6,8 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
-  serverExternalPackages: ['pdfkit'],
-  outputFileTracingIncludes: {
-    '/api/expenses/claim-pdf/[id]': ['./public/fonts/**', './public/logo.png'],
+  experimental: {
+    serverComponentsExternalPackages: ['mammoth', 'xlsx'],
   },
 }
 

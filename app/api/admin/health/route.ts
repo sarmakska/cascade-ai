@@ -40,11 +40,20 @@ interface ProviderStats {
 }
 
 export async function GET() {
-    // Auth check — require a valid user. Add your own admin role check here.
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    // Admin check — restrict to specific user IDs or emails
+    const adminIds = (process.env.ADMIN_USER_IDS || '').split(',').map(s => s.trim()).filter(Boolean)
+    const adminEmails = (process.env.ADMIN_EMAILS || '').split(',').map(s => s.trim()).filter(Boolean)
+    if (adminIds.length > 0 || adminEmails.length > 0) {
+        const isAdmin = adminIds.includes(user.id) || adminEmails.includes(user.email || '')
+        if (!isAdmin) {
+            return NextResponse.json({ error: 'Forbidden — admin access required' }, { status: 403 })
+        }
     }
 
     const e = env()
